@@ -170,14 +170,11 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
 
 
 @jit(
-    "Tuple((float64, float64))(float64[:, ::1], bool)",
+    "Tuple((float64, float64))(float64[:, ::1])",
     nopython=True,
     cache=True,
 )
-def ptrans1_slogdet(
-    matrix: NDArray[np.float64],
-    is_factorized: bool,
-) -> Tuple[float, float]:
+def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
     """
     Computes the sign and the natural logarithm of the determinant of a pentadiagonal
     matrix using the factors obtained from the PTRANS-I algorithm.
@@ -187,9 +184,8 @@ def ptrans1_slogdet(
 
     Parameters
     ----------
-    matrix : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
-        The pentadiagonal matrix or its factorisation to compute the log determinant
-        from.
+    factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
+        The factorisation of the pentadiagonal matrix to compute the determinant of.
         It has to be ordered in row-major format (C-order).
     is_factorized : :obj:`bool`
         Whether the matrix is already factorised (``True``) or not (``False``).
@@ -206,10 +202,7 @@ def ptrans1_slogdet(
 
     """
 
-    if not is_factorized:
-        ptrans1_factorize(matrix=matrix)
-
-    mus = np.ascontiguousarray(matrix[:, 2])
+    mus = np.ascontiguousarray(factorization[:, 2])
 
     # for an even number of negative ``mu``-factors, the sign is positive
     sign = 1.0 if np.count_nonzero(mus < 0) % 2 == 0 else -1.0
@@ -227,84 +220,149 @@ def ptrans1_slogdet(
     return sign, logabsdet
 
 
-def ptrans1_inverse_main_diagonal(
-    matrix: NDArray[np.float64],
-    is_factorized: bool,
-) -> NDArray[np.float64]:
+@jit(
+    "void(float64[:, ::1], float64[::1])",
+    nopython=True,
+    cache=True,
+)
+def ptrans1_solve_single_rhs(
+    factorization: NDArray[np.float64],
+    rhs: NDArray[np.float64],
+) -> None:
     """
-    Computes the main diagonal of the inverse of a pentadiagonal matrix using the
-    factors obtained from the PTRANS-I algorithm.
-    This turns out to be very simple as the main diagonal of the inverse is just the
-    reciprocal of the ``mu``-factors in the factorised matrix.
+    Solves a pentadiagonal linear system using the factors obtained from the PTRANS-I
+    algorithm when only a single right-hand side is given.
 
     Parameters
     ----------
-    matrix : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
-        The pentadiagonal matrix or its factorisation to compute the main diagonal of
-        the inverse from.
+    factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
+        The factorisation of the pentadiagonal matrix to solve the linear system with.
         It has to be ordered in row-major format (C-order).
-    is_factorized : :obj:`bool`
-        Whether the matrix is already factorised (``True``) or not (``False``).
-
-    Returns
-    -------
-    inverse_main_diagonal : :obj:`numpy.ndarray` of shape (m,) and dtype ``numpy.float64``
-        The main diagonal of the inverse of the matrix.
-
-    References
-    ----------
-    .. [1] Fasllija E., Parallel computation of the diagonal of the inverse of a sparse
-           matrix, 2017, pp. 8-9
+    rhs : :obj:`numpy.ndarray` of shape (m,) and dtype ``numpy.float64``
+        The right-hand side of the linear system that will be overwritten with the
+        solution.
 
     """
 
-    if not is_factorized:
-        ptrans1_factorize(matrix=matrix)
+    num_rows = factorization.shape[0]
 
-    return np.reciprocal(np.ascontiguousarray(matrix[:, 2]))
+    # --- Transformation ---
+
+    # the right hand side is transformed into the vector ``z`` by the lower triangular
+    # matrix
+
+    # first row
+    z_i_minus_2 = rhs[0] / factorization[0, 2]
+    rhs[0] = z_i_minus_2
+
+    # second row
+    z_i_minus_1 = (rhs[1] - factorization[1, 1] * z_i_minus_2) / factorization[1, 2]
+    rhs[1] = z_i_minus_1
+
+    # central rows
+    for row_index in range(2, num_rows - 1):
+        z_i = (
+            rhs[row_index]
+            - factorization[row_index, 0] * z_i_minus_2
+            - factorization[row_index, 1] * z_i_minus_1
+        ) / factorization[row_index, 2]
+        z_i_minus_2 = z_i_minus_1
+        z_i_minus_1 = z_i
+
+        rhs[row_index] = z_i
+
+    # last row
+    # NOTE: this is done separately to avoid the memoized z-values to be overwritten
+    #       because the backward substitution will now loop over them in reverse order
+    z_i = (
+        rhs[num_rows - 1]
+        - factorization[num_rows - 1, 0] * z_i_minus_2
+        - factorization[num_rows - 1, 1] * z_i_minus_1
+    ) / factorization[num_rows - 1, 2]
+
+    rhs[num_rows - 1] = z_i
+
+    # --- Backward substitution ---
+
+    z_i_minus_1 -= factorization[num_rows - 2, 3] * z_i
+    rhs[num_rows - 2] = z_i_minus_1
+
+    for row_index in range(num_rows - 3, -1, -1):
+        rhs[row_index] -= (
+            factorization[row_index, 3] * z_i_minus_1
+            + factorization[row_index, 4] * z_i
+        )
+        z_i = z_i_minus_1
+        z_i_minus_1 = rhs[row_index]
+
+    return
 
 
-test = np.random.rand(3, 3)
-test = np.tril(test)
-print(1.0 / np.diag(test))
+if __name__ == "__main__":
 
-print(np.diag(np.linalg.inv(test)))
+    from scipy.linalg import solve_triangular
 
-raise KeyboardInterrupt()
+    np.random.seed(0)
+    test = np.random.rand(10_000, 5)
+    test[::, 2] += 2.0
+    test_dense = np.zeros((test.shape[0], test.shape[0]))
 
-test = np.random.rand(100, 5)
-test_dense = np.zeros((test.shape[0], test.shape[0]))
+    test_dense += np.diag(test[2:, 0], k=-2)
+    test_dense += np.diag(test[1:, 1], k=-1)
+    test_dense += np.diag(test[:, 2])
+    test_dense += np.diag(test[:-1, 3], k=1)
+    test_dense += np.diag(test[:-2, 4], k=2)
 
-test_dense += np.diag(test[2:, 0], k=-2)
-test_dense += np.diag(test[1:, 1], k=-1)
-test_dense += np.diag(test[:, 2])
-test_dense += np.diag(test[:-1, 3], k=1)
-test_dense += np.diag(test[:-2, 4], k=2)
+    print(np.round(test, 2))
+    print(np.round(test_dense, 2))
 
-print(np.round(test, 2))
-print(np.round(test_dense, 2))
+    print(np.linalg.slogdet(test_dense))
 
-print(np.linalg.slogdet(test_dense))
+    fact = test.copy()
+    ptrans1_factorize(fact)
+    print(ptrans1_slogdet(fact), end="\n\n")
 
-fact = test.copy()
-ptrans1_factorize(fact)
-print(ptrans1_slogdet(fact, True))
-print(ptrans1_slogdet(test.copy(), False))
+    l_mat = np.zeros((test.shape[0], test.shape[0]))
+    l_mat += np.diag(fact[2:, 0], k=-2)
+    l_mat += np.diag(fact[1:, 1], k=-1)
+    l_mat += np.diag(fact[:, 2])
 
-print(np.diag(np.linalg.inv(test_dense)))
-print(ptrans1_inverse_main_diagonal(fact, True))
-print(np.allclose(ptrans1_inverse_main_diagonal(fact, True), np.diag(np.linalg.inv(test_dense))))
+    u_mat = np.zeros((test.shape[0], test.shape[0]))
+    u_mat += np.diag(np.ones(test.shape[0]), k=0)
+    u_mat += np.diag(fact[:-1, 3], k=1)
+    u_mat += np.diag(fact[:-2, 4], k=2)
 
-raise KeyboardInterrupt()
+    print(np.max(np.abs(l_mat @ u_mat - test_dense)), end="\n\n")
 
-from time import perf_counter_ns
+    b_vect = np.random.rand(test.shape[0])
+    x_penta = b_vect.copy()
+    x_dense = np.linalg.solve(test_dense, b_vect)
 
-fact = test.copy()
-start_time = perf_counter_ns()
-ptrans1_factorize(fact)
-print(ptrans1_slogdet(fact, True))
-end_time = perf_counter_ns()
+    print("L-solve:\n", solve_triangular(l_mat, b_vect, lower=True), end="\n\n")
 
-print(f"Elapsed time: {(end_time - start_time) / 1e3:.0f} mus")
+    ptrans1_solve_single_rhs(fact, x_penta)
 
+    print(x_dense, end="\n\n")
+    print(x_penta)
 
+    print(np.allclose(x_dense, x_penta))
+
+    print("\n\nTest inverse diagonal")
+    print(np.diag(np.linalg.inv(test_dense)), end="\n\n")
+
+    from time import perf_counter_ns
+
+    fact = test.copy()
+    b_vect = np.random.rand(test.shape[0])
+    start_time = perf_counter_ns()
+    ptrans1_factorize(fact)
+    print(ptrans1_slogdet(fact))
+    end_time = perf_counter_ns()
+
+    print(f"Factorization lapsed time: {(end_time - start_time) / 1e3:.0f} mus")
+
+    start_time = perf_counter_ns()
+    ptrans1_solve_single_rhs(fact, b_vect)
+    end_time = perf_counter_ns()
+
+    print(f"Solve elapsed time: {(end_time - start_time) / 1e3:.0f} mus")
