@@ -135,7 +135,7 @@ def _convert_to_validated_type(
 
     # if the value is neither of the output type nor one of the allowed types, an error
     # is raised
-    # NOTE: the following slices [7:-1] # removes the "<class '" and "'>" parts
+    # NOTE: the following slices [7:-1] # removes the "<class " and ">" parts
     allowed_types_names = f"{output_type}"[7:-1]
     allowed_types_names += " / "
     allowed_types_names += " / ".join([f"{atp}"[7:-1] for atp in allowed_from_types])
