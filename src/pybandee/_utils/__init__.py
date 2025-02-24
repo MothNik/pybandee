@@ -7,7 +7,13 @@ This module provides utilities used across the ``pybandee`` package.
 
 # === Imports ===
 
-from ._custom_types import Integer, RealNumeric, RealNumericArrayLike  # noqa: F401
+from ._custom_types import (  # noqa: F401
+    Integer,
+    LinearSystemSolution,
+    MatrixFactorization,
+    RealNumeric,
+    RealNumericArrayLike,
+)
 from ._miscellaneous import split_class_name_to_readable, warn_verbose  # noqa: F401
 from ._numba_helpers import jit  # noqa: F401
 from ._validate import (  # noqa: F401

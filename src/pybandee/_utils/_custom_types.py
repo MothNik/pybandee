@@ -7,6 +7,7 @@ This module provides type definitions used across the ``pybandee`` package.
 
 # === Imports ===
 
+from collections import namedtuple
 from typing import Union
 
 import numpy as np
@@ -20,3 +21,22 @@ Integer = Union[int, np.integer]
 
 # a real numeric Arraylike
 RealNumericArrayLike = Union[RealNumeric, ArrayLike]
+
+# matrix factorisations
+MatrixFactorization = namedtuple(
+    typename="MatrixFactorization",
+    field_names=(
+        "factorization",
+        "method",
+    ),
+)
+
+# linear system solutions
+LinearSystemSolution = namedtuple(
+    typename="LinearSystemSolution",
+    field_names=(
+        "solution",
+        "factorization",
+        "method",
+    ),
+)
