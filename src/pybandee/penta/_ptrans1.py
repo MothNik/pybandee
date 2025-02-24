@@ -4,8 +4,8 @@ Module :mod:`penta._ptrans1`
 This module implements the PTRANS-I algorithm for the factorisation and solving of
 pentadiagonal linear systems as described in [1]_.
 
-It relies heavily on ``numba`` and all function can be called in other ``jit``-compiled
-functions.
+It relies heavily on ``numba`` and all its functions can be called in other
+``jit``-compiled functions.
 
 """
 
@@ -52,7 +52,7 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
 
     ```
        # sub 2      sub 1       main         sup 1     sup 2
-    [[    *           *          d_0          a_0       b_i      ]
+    [[    *           *          d_0          a_0       b_0      ]
      [    *          c_1         d_1          a_1       b_1      ]
      [    e_2        c_2         d_2          a_2       b_2      ]
                                 ...
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     from scipy.linalg import solve_triangular
 
     np.random.seed(0)
-    test = np.random.rand(10_000, 5)
+    test = np.random.rand(7, 5)
     test[::, 2] += 2.0
     test_dense = np.zeros((test.shape[0], test.shape[0]))
 
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     u_mat += np.diag(fact[:-1, 3], k=1)
     u_mat += np.diag(fact[:-2, 4], k=2)
 
-    print(np.max(np.abs(l_mat @ u_mat - test_dense)), end="\n\n")
+    assert np.allclose(test_dense, l_mat @ u_mat)
 
     b_vect = np.random.rand(test.shape[0])
     x_penta = b_vect.copy()
@@ -345,10 +345,34 @@ if __name__ == "__main__":
     print(x_dense, end="\n\n")
     print(x_penta)
 
-    print(np.allclose(x_dense, x_penta))
+    assert np.allclose(x_dense, x_penta)
+
+    test_inv = np.linalg.inv(test_dense)
+    uinv_dinv = solve_triangular(
+        u_mat,
+        np.diag(1.0 / fact[::, 2]),
+        lower=False,
+    )
+    eye_minus_l = np.eye(test.shape[0]) - l_mat / fact[::, 2][np.newaxis, ::]
+    test_inv_rec = uinv_dinv + test_inv @ eye_minus_l
+    print(np.round(test_inv, 2), end="\n----\n")
+    print(np.round(uinv_dinv, 2), end="\n----\n")
+    print(np.round(1.0 / fact[::, 2], 2), end="\n----\n")
+    print(np.round(test_inv @ eye_minus_l, 2), end="\n----\n")
+    print(np.round(test_inv_rec, 2), end="\n----\n")
 
     print("\n\nTest inverse diagonal")
     print(np.diag(np.linalg.inv(test_dense)), end="\n\n")
+    print(
+        np.diag(
+            solve_triangular(
+                u_mat,
+                np.diag(1.0 / fact[::, 2]),
+                lower=False,
+            )
+        ),
+        end="\n\n",
+    )
 
     from time import perf_counter_ns
 
