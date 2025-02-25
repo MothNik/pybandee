@@ -701,7 +701,7 @@ def get_validated_real_numeric_1d_array_like(
     ValueError
         If ``output_order`` is not one of the allowed values.
 
-    """
+    """  # noqa: E501
 
     return get_validated_numeric_nd_array_like(
         value=value,
@@ -751,8 +751,10 @@ def get_validated_real_numeric_2d_array_like(
         The data type of the output NumPy Array.
         If ``None``, the data type is not changed.
         The conversion is done with ``value.astype(output_dtype, casting="safe")``.
-    output_order : {``"C"``, ``"c"``, ``"F"``, ``"f"``} or ``None``, default=``None``
-        The order of the output NumPy Array.
+    output_order : {``"C"``, ``"c"``, ``"F"``, ``"f"``, ``"Fortran"``, ``"fortran"``} or ``None``
+        The order of the output NumPy Array which can be either ``"C"`` or ``"c"`` for
+        row-major (C-order) or ``"F"``, ``"f"``, ``"Fortran"``, or ``"fortran"`` for
+        column-major (Fortran-order).
         If ``None``, the order is not changed.
 
     Returns
@@ -777,7 +779,7 @@ def get_validated_real_numeric_2d_array_like(
     ValueError
         If ``output_order`` is not one of the allowed values.
 
-    """
+    """  # noqa: E501
 
     return get_validated_numeric_nd_array_like(
         value=value,
