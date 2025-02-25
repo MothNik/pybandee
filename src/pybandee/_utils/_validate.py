@@ -37,9 +37,11 @@ from typing import (
 
 import numpy as np
 
-# === Types ===
+# === Typing ===
 
 ValueType = TypeVar("ValueType", int, float)
+
+_ArrayMemoryOrder = Optional[Literal["C", "c", "F", "f", "fortran"]]
 
 # === Models ===
 
@@ -478,6 +480,7 @@ def get_validated_numeric_nd_array_like(
     dtype_kind: NumPyDTypeKinds,
     enforce_finite: bool,
     output_dtype: Optional[Type],
+    output_order: _ArrayMemoryOrder,
 ) -> np.ndarray:
     """
     Checks if a value is an N-dimensional Array-like of correct numeric data type and
@@ -506,6 +509,11 @@ def get_validated_numeric_nd_array_like(
         The data type of the output NumPy Array.
         If ``None``, the data type is not changed.
         The conversion is done with ``value.astype(output_dtype, casting="safe")``.
+    output_order : {``"C"``, ``"c"``, ``"F"``, ``"f"``, ``"Fortran"``, ``"fortran"``} or ``None``
+        The order of the output NumPy Array which can be either ``"C"`` or ``"c"`` for
+        row-major (C-order) or ``"F"``, ``"f"``, ``"Fortran"``, or ``"fortran"`` for
+        column-major (Fortran-order).
+        If ``None``, the order is not changed.
 
     Returns
     -------
@@ -524,10 +532,12 @@ def get_validated_numeric_nd_array_like(
         If ``shape_limits`` contains invalid limits.
     TypeError
         If ``value`` does not have the correct data type.
-    AssertionError
-        (Internal) If ``shape_limits`` is not of length ``dim``.
+    ValueError
+        If ``shape_limits`` is not of length ``dim``.
+    ValueError
+        If ``output_order`` is not one of the allowed values.
 
-    """
+    """  # noqa: E501
 
     # first, the value is converted to a NumPy Array
     # NOTE: the case of the value being a NumPy Array is handled first to avoid
@@ -561,7 +571,7 @@ def get_validated_numeric_nd_array_like(
 
     # if the shape limits are not of length dim, an error is raised
     if len(shape_limits) != dim:
-        raise AssertionError(
+        raise ValueError(
             f"Expected 'shape_limits' to be of length {dim}, but got a length of "
             f"{len(shape_limits)}."
         )
@@ -611,6 +621,26 @@ def get_validated_numeric_nd_array_like(
                     f"'{output_dtype.__name__}'-Array (uses 'safe' casting)."
                 ) from err
 
+    # if a new order is provided, the value is converted to this order
+    if output_order is not None:
+        try:
+            if not isinstance(output_order, str):
+                raise TypeError("Expected 'output_order' to be a string.")
+
+            memory_layout_converter = {
+                "c": np.ascontiguousarray,
+                "f": np.asfortranarray,
+                "fortran": np.asfortranarray,
+            }[output_order.lower()]
+
+            value_array = memory_layout_converter(value_array)
+
+        except (TypeError, KeyError) as error:
+            raise ValueError(
+                f"Expected 'output_order' to be 'C', 'c', 'F', 'f', 'Fortran', or "
+                f"'fortran', but got '{output_order}'."
+            ) from error
+
     return value_array
 
 
@@ -621,6 +651,7 @@ def get_validated_real_numeric_1d_array_like(
     max_size: Optional[int] = None,
     enforce_finite: bool = False,
     output_dtype: Optional[Type] = None,
+    output_order: _ArrayMemoryOrder = None,
 ) -> np.ndarray:
     """
     Checks if a value is a 1D Array-like of real numeric values and returns it as a
@@ -644,6 +675,11 @@ def get_validated_real_numeric_1d_array_like(
         The data type of the output NumPy Array.
         If ``None``, the data type is not changed.
         The conversion is done with ``value.astype(output_dtype, casting="safe")``.
+    output_order : {``"C"``, ``"c"``, ``"F"``, ``"f"``, ``"Fortran"``, ``"fortran"``} or ``None``
+        The order of the output NumPy Array which can be either ``"C"`` or ``"c"`` for
+        row-major (C-order) or ``"F"``, ``"f"``, ``"Fortran"``, or ``"fortran"`` for
+        column-major (Fortran-order).
+        If ``None``, the order is not changed.
 
     Returns
     -------
@@ -662,6 +698,8 @@ def get_validated_real_numeric_1d_array_like(
         If ``min_size <= value.size <= max_size`` is not fulfilled.
     TypeError
         If ``value`` does not contain only real numeric values.
+    ValueError
+        If ``output_order`` is not one of the allowed values.
 
     """
 
@@ -675,6 +713,7 @@ def get_validated_real_numeric_1d_array_like(
         dtype_kind=NumPyDTypeKinds.REAL_NUMERIC_NO_BOOL,
         enforce_finite=enforce_finite,
         output_dtype=output_dtype,
+        output_order=output_order,
     )
 
 
@@ -687,6 +726,7 @@ def get_validated_real_numeric_2d_array_like(
     columns_max_num: Optional[int] = None,
     enforce_finite: bool = False,
     output_dtype: Optional[Type] = None,
+    output_order: _ArrayMemoryOrder = None,
 ) -> np.ndarray:
     """
     Checks if a value is a 2D Array-like of real numeric values and returns it as a
@@ -711,6 +751,9 @@ def get_validated_real_numeric_2d_array_like(
         The data type of the output NumPy Array.
         If ``None``, the data type is not changed.
         The conversion is done with ``value.astype(output_dtype, casting="safe")``.
+    output_order : {``"C"``, ``"c"``, ``"F"``, ``"f"``} or ``None``, default=``None``
+        The order of the output NumPy Array.
+        If ``None``, the order is not changed.
 
     Returns
     -------
@@ -731,6 +774,8 @@ def get_validated_real_numeric_2d_array_like(
         If ``columns_min_num <= value.shape[1] <= columns_max_num`` is not fulfilled.
     TypeError
         If ``value`` does not contain only real numeric values.
+    ValueError
+        If ``output_order`` is not one of the allowed values.
 
     """
 
@@ -745,6 +790,7 @@ def get_validated_real_numeric_2d_array_like(
         dtype_kind=NumPyDTypeKinds.REAL_NUMERIC_NO_BOOL,
         enforce_finite=enforce_finite,
         output_dtype=output_dtype,
+        output_order=output_order,
     )
 
 
