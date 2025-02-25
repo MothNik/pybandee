@@ -16,7 +16,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from pybandee._utils import jit
+from .._utils import jit
 
 # === Functions ===
 

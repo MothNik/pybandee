@@ -13,7 +13,7 @@ from typing import Literal, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from pybandee._utils import (
+from .._utils import (
     RealNumericArrayLike,
     get_validated_real_numeric_2d_array_like,
     is_data_linked,
