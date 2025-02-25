@@ -324,7 +324,8 @@ def convert_to_validated_penta(
         - ``"penta_row"``: the pentadiagonal row-major format (C-order) which requires
             no conversion and is thus the most efficient format (``shape=(p, 5)``)
         - ``"lapack_general_banded"``: the LAPACK general banded matrix format as
-            expected by the function :func:`scipy.linalg.solve_banded` (``shape=(5, p)``)
+            expected by the function :func:`scipy.linalg.solve_banded`
+            (``shape=(5, p)``)
         - ``"dense"``: the dense matrix format (``shape=(p, p)``)
 
         Please refer to the Notes section for details.
