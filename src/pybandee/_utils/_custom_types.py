@@ -31,6 +31,15 @@ MatrixFactorization = namedtuple(
     ),
 )
 
+# log determinant results
+SlogdetResult = namedtuple(
+    typename="SlogdetResult",
+    field_names=(
+        "sign",
+        "logabsdet",
+    ),
+)
+
 # linear system solutions
 LinearSystemSolution = namedtuple(
     typename="LinearSystemSolution",

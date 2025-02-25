@@ -13,6 +13,7 @@ from ._custom_types import (  # noqa: F401
     MatrixFactorization,
     RealNumeric,
     RealNumericArrayLike,
+    SlogdetResult,
 )
 from ._miscellaneous import (  # noqa: F401
     is_data_linked,

@@ -41,3 +41,32 @@ def test_pentadiagonal_solve() -> None:
         assert np.allclose(b, x_lapack)
 
     return
+
+
+def test_pentadiagonal_slogdet() -> None:
+
+    np.random.seed(0)
+
+    for num_rows in (5, 12, 13):
+
+        penta_matrix = np.random.rand(num_rows, 5)
+        penta_matrix[::, 2] += 2.0
+        dense_matrix = np.zeros((penta_matrix.shape[0], penta_matrix.shape[0]))
+
+        dense_matrix += np.diag(penta_matrix[2:, 0], k=-2)
+        dense_matrix += np.diag(penta_matrix[1:, 1], k=-1)
+        dense_matrix += np.diag(penta_matrix[:, 2])
+        dense_matrix += np.diag(penta_matrix[:-1, 3], k=1)
+        dense_matrix += np.diag(penta_matrix[:-2, 4], k=2)
+
+        sloget_dense = np.linalg.slogdet(dense_matrix)
+
+        sloget_penta = penta.penta_slogdet(matrix=penta_matrix)
+
+        assert np.isclose(sloget_penta.sign, sloget_dense.sign)
+        assert np.isclose(sloget_penta.logabsdet, sloget_dense.logabsdet)
+
+    return
+
+
+test_pentadiagonal_slogdet()

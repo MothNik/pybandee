@@ -12,12 +12,15 @@ functions. It provides the following functions:
 
 # === Imports ===
 
+from typing import Union
+
 import numpy as np
 
 from .._utils import (
     LinearSystemSolution,
     MatrixFactorization,
     RealNumericArrayLike,
+    SlogdetResult,
     get_validated_real_numeric_1d_array_like,
 )
 from ._penta_utils import (
@@ -25,7 +28,12 @@ from ._penta_utils import (
     convert_to_validated_penta,
     is_data_linked,
 )
-from ._ptrans1 import ptrans1_factorize, ptrans1_solve_single_rhs
+from ._ptrans1 import ptrans1_factorize, ptrans1_slogdet, ptrans1_solve_single_rhs
+
+# === Constants ===
+
+# the name of the PTRANS-I algorithm
+PTRANS1_METHOD = "ptrans1"
 
 # === Functions ===
 
@@ -204,7 +212,7 @@ def penta_factorize(
     if info == 0:
         return MatrixFactorization(
             factorization=factorization,
-            method="prtrans1",
+            method=PTRANS1_METHOD,
         )
 
     if info > 0:
@@ -345,7 +353,7 @@ def penta_solve(
         return LinearSystemSolution(
             solution=rhs_solution,
             factorization=lhs_factorization,
-            method="ptrans1",
+            method=PTRANS1_METHOD,
         )
 
     if info > 0:
@@ -356,3 +364,158 @@ def penta_solve(
         )
 
     raise AssertionError(f"Unexpected error during factorisation, got {info=}")
+
+
+def penta_slogdet_from_factorization(
+    factorization_like: Union[MatrixFactorization, LinearSystemSolution],
+) -> SlogdetResult:
+    """
+    Computes the sign and the log determinant of a pentadiagonal matrix from a
+    factorisation.
+    For computing the determinant directly from the matrix that has not been factorised,
+    the function :fun:`penta_slogdet` should be used instead.
+
+    Parameters
+    ----------
+    factorization_like : :obj:`MatrixFactorization` or :obj:`LinearSystemSolution`
+        A :obj:`namedtuple` that can either be a
+
+        - :obj:`MatrixFactorization` as returned by :fun:`penta_factorize`
+        - :obj:`LinearSystemSolution` as returned by :fun:`penta_solve`
+
+        since both of them store the factorised matrix.
+
+    Returns
+    -------
+    A namedtuple with the following fields:
+
+    sign : :obj:`float`
+        The sign of the determinant of the matrix.
+    logabsdet : :obj:`float`
+        The natural logarithm of the absolute determinant of the matrix.
+
+    If the determinant is zero, then sign will be ``0.0`` and ``logabsdet`` will be
+    ``-inf``. In all cases, the determinant is equal to ``sign * np.exp(logabsdet)``.
+
+    Raises
+    ------
+    TypeError
+        If ``factorization_like`` is not of expected type.
+    ValueError
+        If ``factorization_like`` was not created by either :fun:`penta_factorize` or
+        :fun:`penta_solve`.
+
+    """  # noqa: E501
+
+    # --- Input Validation ---
+
+    if not isinstance(factorization_like, (MatrixFactorization, LinearSystemSolution)):
+        # NOTE: the following slices [7:-1] # removes the "<class " and ">" parts
+        factorization_like_type_str = f"{type(factorization_like)}"[7:-1]
+        raise TypeError(
+            f"Expected either a 'MatrixFactorization' or a 'LinearSystemSolution', "
+            f"got '{factorization_like_type_str}'."
+        )
+
+    if factorization_like.method != PTRANS1_METHOD:
+        raise ValueError(
+            f"Expected a factorisation created by 'penta_factorize' or 'penta_solve' "
+            f"that rely on the PTRANS-I algorithm, but they were obtained by the"
+            f"'{factorization_like.method}' algorithm."
+        )
+
+    # --- Log Determinant Computation ---
+
+    sign, logabsdet = ptrans1_slogdet(factorization=factorization_like.factorization)
+
+    return SlogdetResult(
+        sign=sign,
+        logabsdet=logabsdet,
+    )
+
+
+def penta_slogdet(
+    matrix: RealNumericArrayLike,
+    matrix_format: PentaDiagonalMatrixFormat = "penta_row",
+    overwrite: bool = False,
+    check_finite: bool = True,
+) -> SlogdetResult:
+    """
+    Computes the sign and the log determinant of a pentadiagonal matrix using the PTRANS-I
+    algorithm.
+    If the matrix has already been factorised by either :fun:`penta_factorize` or
+    :fun:`penta_solve`, the function :fun:`penta_slogdet_from_factorization` should be
+    used instead.
+
+    Parameters
+    ----------
+    matrix : ArrayLike of shape (m, n)
+        The matrix whose sign and log determinant are to be computed. Its storage format
+        is given by ``matrix_format``. To be truly pentadiagonal, it has to have at least
+        5 rows and columns when converted to the dense format. Its data type is
+        internally promoted to ``numpy.float64``.
+    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, ``"dense"``}, default=``"penta_row"``
+        The storage format of the input matrix. Any format other than ``"penta_row"``
+        will require a conversion since the underlying algorithms are tailored for the
+        pentadiagonal row-major format. The shape of ``matrix`` is given in brackets
+        where ``p`` is the number of rows/columns of the dense equivalent of ``matrix``.
+
+        - ``"penta_row"``: the pentadiagonal row-major format (C-order) which requires
+            no conversion and is thus the most efficient format (``shape=(p, 5)``)
+        - ``"lapack_general_banded"``: the LAPACK general banded matrix format as
+            expected by the function :func:`scipy.linalg.solve_banded`
+            (``shape=(5, p)``)
+        - ``"dense"``: the dense matrix format (``shape=(p, p)``)
+
+        Please refer to the Notes section for details.
+    overwrite : :obj:`bool`, default=``False``
+        Whether to overwrite ``matrix`` with the factorised matrix (``True``) or not
+        (``False``).
+        Note that this is only relevant if ``matrix_format="penta_row"`` and no other
+        type conversion is performed. Applicability is checked on the fly making sure
+        that overwriting is still performed despite ``overwrite=False`` in case the link
+        between the input and the converted matrix is broken.
+    check_finite : :obj:`bool`, default=``True``
+        Whether to check that the input matrix contains only finite values (``True``) or
+        not (``False``).
+        While disabling will speed up the computation and the results will be corrupted
+        by the presence of ``nan`` or ``inf`` values, the algorithm will always
+        terminate since its execution steps are not relying on previous computations.
+
+    Returns
+    -------
+    A :obj:`namedtuple` with the following fields:
+
+    sign : :obj:`float`
+        The sign of the determinant of the matrix.
+    logabsdet : :obj:`float`
+        The natural logarithm of the absolute determinant of the matrix.
+
+    If the determinant is zero, then sign will be ``0.0`` and ``logabsdet`` will be
+    ``-inf``. In all cases, the determinant is equal to ``sign * np.exp(logabsdet)``.
+
+    Raises
+    ------
+    TypeError
+        If ``matrix`` or ``matrix_format`` are not of expected type.
+    ValueError
+        If ``matrix`` does contains non-finite values and ``check_finite=True``.
+    ValueError
+        If ``matrix`` cannot be converted to the ``matrix_format="penta_row"`` format.
+    LinAlgError
+        If ``matrix`` cannot be factorised.
+
+    """  # noqa: E501
+
+    # --- Input Validation and Factorisation ---
+
+    factorization = penta_factorize(
+        matrix=matrix,
+        matrix_format=matrix_format,
+        overwrite=overwrite,
+        check_finite=check_finite,
+    )
+
+    # --- Log Determinant Computation ---
+
+    return penta_slogdet_from_factorization(factorization_like=factorization)
