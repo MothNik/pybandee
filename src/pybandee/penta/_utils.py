@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from pybandee._utils import (
     RealNumericArrayLike,
     get_validated_real_numeric_2d_array_like,
+    is_data_linked,
     jit,
 )
 
@@ -293,7 +294,6 @@ def _raise_error_dense_to_penta(
     )
 
 
-# TODO: handle overwrite
 def convert_to_validated_penta(
     matrix: RealNumericArrayLike,
     matrix_name: str,
@@ -314,23 +314,24 @@ def convert_to_validated_penta(
     matrix_name : :obj:`str`
         The name of the matrix.
         This is used when raising errors.
-    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, "``dense``"}, default=``"penta_row"``
-        The storage format of the input matrix. Any format other than ``"penta_row"``
-        will require a conversion since the underlying algorithms are tailored for the
+    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, "``dense``"}
+        The storage format of ``matrix``. Any format other than ``"penta_row"`` will
+        require a conversion since the underlying algorithms are tailored for the
         pentadiagonal row-major format. The shape of ``matrix`` is given in brackets
-        where ``p`` is the number of rows/columns of the dense equivalent of ``matrix``.
+        where ``p`` is the number of rows/columns of the dense equivalent of
+        ``lhs_matrix``.
 
         - ``"penta_row"``: the pentadiagonal row-major format (C-order) which requires
-            no conversion and is thus the most efficient format (``(p, 5)``)
+            no conversion and is thus the most efficient format (``shape=(p, 5)``)
         - ``"lapack_general_banded"``: the LAPACK general banded matrix format as
-            expected by the function :func:`scipy.linalg.solve_banded` (``(5, p)``)
-        - ``"dense"``: the dense matrix format (``(p, p)``)
+            expected by the function :func:`scipy.linalg.solve_banded` (``shape=(5, p)``)
+        - ``"dense"``: the dense matrix format (``shape=(p, p)``)
 
-    overwrite : :obj:`bool`, default=``False``
+        Please refer to the Notes section for details.
+    overwrite : :obj:`bool`
         Whether ``matrix`` should be overwritten with the factorised matrix
         (``True``) or not (``False`).
-        Note that this is only relevant if ``matrix_format = "penta_row"`` or a type
-        conversion is required.
+        See the Returns section for details.
     check_finite : :obj:`bool`, default=``True``
         Whether to check that the input matrix contains only finite values (``True``) or
         not (``False``).
@@ -343,7 +344,7 @@ def convert_to_validated_penta(
         Whether ``matrix`` can be overwritten with the factorised matrix without
         violating the input requirements given by ``overwrite`` (``True``) or not
         (``False``).
-        So, if ``overwrite=False`` and the conversion breaks links between the input
+        So, if ``overwrite=False`` and the conversion breaks the link between the input
         and output matrices, this will be set to ``True``.
 
     Raises
@@ -357,7 +358,7 @@ def convert_to_validated_penta(
 
     # --- Input Validation ---
 
-    matrix = get_validated_real_numeric_2d_array_like(
+    converted_matrix = get_validated_real_numeric_2d_array_like(
         value=matrix,
         name=matrix_name,
         rows_min_num=None,  # NOTE: checks will be performed by the converter
@@ -398,14 +399,22 @@ def convert_to_validated_penta(
                 f"'lapack_general_banded', or 'dense' but got '{matrix_format}'."
             )
 
-        matrix, info = converter(matrix=matrix)
+        converted_matrix, info = converter(matrix=converted_matrix)
         converter_error_checker(matrix_shape=matrix.shape, info=info)  # type: ignore
+
+    # if overwrite is disabled, but the original data is not linked to the converted
+    # data, then the original data can be safely overwritten
+    if not overwrite:
+        overwrite = not is_data_linked(
+            array=converted_matrix,
+            original=matrix,
+        )
 
     # NOTE: this validation covers both the "penta_row" format and any other format
     #       to be sure that the conversion functions work correctly
-    validate_penta(matrix=matrix)
+    validate_penta(matrix=converted_matrix)
 
-    return matrix, overwrite
+    return converted_matrix, overwrite
 
 
 if __name__ == "__main__":
