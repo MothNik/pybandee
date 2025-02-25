@@ -6,17 +6,15 @@ across the ``pybandee`` package.
 
 """
 
-# === Setup ===
-
-__all__ = [
-    "split_class_name_to_readable",
-    "warn_verbose",
-]
-
 # === Imports ===
 
 import re
+from typing import Union
 from warnings import warn
+
+import numpy as np
+
+from ._custom_types import ArrayLike, RealNumeric
 
 # === Functions ===
 
@@ -65,3 +63,29 @@ def warn_verbose(
         return
 
     return
+
+
+def is_data_linked(
+    array: np.ndarray,
+    original: Union[RealNumeric, ArrayLike],
+) -> bool:
+    """
+    Strictly checks for ``array`` not sharing any data with ``original``, under the
+    assumption that ``array = atleast_{x}d(original)`` followed by a potential type
+    conversion.
+    If ``array`` is a view of ``original``, this function returns ``False``.
+
+    Was copied from the SciPy utility function ``scipy.linalg._misc._datacopied``, but
+    the name and the docstring were adapted to make them clearer. Besides, the check for
+    scalar ``original``s was added.
+
+    """
+
+    if np.isscalar(original):
+        return False
+    if array is original:
+        return True
+    if not isinstance(original, np.ndarray) and hasattr(original, "__array__"):
+        return original.__array__().dtype is array.dtype  # type: ignore
+
+    return array.base is not None

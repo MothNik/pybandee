@@ -14,7 +14,11 @@ from ._custom_types import (  # noqa: F401
     RealNumeric,
     RealNumericArrayLike,
 )
-from ._miscellaneous import split_class_name_to_readable, warn_verbose  # noqa: F401
+from ._miscellaneous import (  # noqa: F401
+    is_data_linked,
+    split_class_name_to_readable,
+    warn_verbose,
+)
 from ._numba_helpers import jit  # noqa: F401
 from ._validate import (  # noqa: F401
     NumPyDTypeKinds,
