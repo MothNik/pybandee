@@ -120,7 +120,7 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
 
     # Central rows
     # NOTE: this loop is manually unrolled by a factor of 2
-    split_row_index = num_rows - 2 - ((num_rows - 4) % 2)
+    split_row_index = 2 + 2 * ((num_rows - 4) // 2)
     for row_index in range(2, split_row_index, 2):
         e_i = matrix[row_index, 0]
         ga_i = matrix[row_index, 1] - al_i_minus_2 * e_i
@@ -297,7 +297,30 @@ def ptrans1_solve_single_rhs(
     rhs[1] = z_i_minus_1
 
     # central rows
-    for row_index in range(2, num_rows - 1):
+    # NOTE: this loop is manually unrolled by a factor of 2
+    split_row_index = 2 + 2 * ((num_rows - 3) // 2)
+    for row_index in range(2, split_row_index, 2):
+        z_i = (
+            rhs[row_index]
+            - factorization[row_index, 0] * z_i_minus_2
+            - factorization[row_index, 1] * z_i_minus_1
+        ) / factorization[row_index, 2]
+        z_i_minus_2 = z_i_minus_1
+        z_i_minus_1 = z_i
+
+        rhs[row_index] = z_i
+
+        z_i = (
+            rhs[row_index + 1]
+            - factorization[row_index + 1, 0] * z_i_minus_2
+            - factorization[row_index + 1, 1] * z_i_minus_1
+        ) / factorization[row_index + 1, 2]
+        z_i_minus_2 = z_i_minus_1
+        z_i_minus_1 = z_i
+
+        rhs[row_index + 1] = z_i
+
+    for row_index in range(split_row_index, num_rows - 1):
         z_i = (
             rhs[row_index]
             - factorization[row_index, 0] * z_i_minus_2
@@ -324,13 +347,35 @@ def ptrans1_solve_single_rhs(
     z_i_minus_1 -= factorization[num_rows - 2, 3] * z_i
     rhs[num_rows - 2] = z_i_minus_1
 
-    for row_index in range(num_rows - 3, -1, -1):
+    # central rows
+    # NOTE: this loop is also manually unrolled by a factor of 2
+    split_row_index = num_rows - 3 - 2 * ((num_rows - 3) // 2)
+    for row_index in range(num_rows - 3, split_row_index, -2):
         rhs[row_index] -= (
             factorization[row_index, 3] * z_i_minus_1
             + factorization[row_index, 4] * z_i
         )
         z_i = z_i_minus_1
         z_i_minus_1 = rhs[row_index]
+
+        rhs[row_index - 1] -= (
+            factorization[row_index - 1, 3] * z_i_minus_1
+            + factorization[row_index - 1, 4] * z_i
+        )
+        z_i = z_i_minus_1
+        z_i_minus_1 = rhs[row_index - 1]
+
+    for row_index in range(split_row_index, 0, -1):
+        rhs[row_index] -= (
+            factorization[row_index, 3] * z_i_minus_1
+            + factorization[row_index, 4] * z_i
+        )
+
+        z_i = z_i_minus_1
+        z_i_minus_1 = rhs[row_index]
+
+    # last row
+    rhs[0] -= factorization[0, 3] * z_i_minus_1 + factorization[0, 4] * z_i
 
     return
 
@@ -340,7 +385,7 @@ if __name__ == "__main__":
     from scipy.linalg import solve_triangular
 
     np.random.seed(0)
-    test = np.random.rand(11, 5)
+    test = np.random.rand(10, 5)
     test[::, 2] += 2.0
     test_dense = np.zeros((test.shape[0], test.shape[0]))
 
