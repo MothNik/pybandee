@@ -31,14 +31,20 @@ PentaDiagonalMatrixFormat = Literal[
 # === Functions ===
 
 
-def validate_penta(matrix: NDArray[np.float64]) -> None:
+def get_validated_penta(matrix: NDArray[np.float64]) -> NDArray[np.float64]:
     """
-    Validates a matrix in pentadiagonal row-major format.
+    Validates a matrix in pentadiagonal and copies it to ensure that it is in row-major
+    (C-order) format if required.
 
     Parameters
     ----------
     matrix : :obj:`numpy.ndarray` of shape (n, 5)
         The matrix to validate.
+
+    Returns
+    -------
+    validated_matrix : :obj:`numpy.ndarray` of shape (n, 5)
+        The validated matrix in row major (C-order) format.
 
     Raises
     ------
@@ -61,7 +67,7 @@ def validate_penta(matrix: NDArray[np.float64]) -> None:
             f"matrix of shape {matrix.shape}."
         )
 
-    return
+    return np.ascontiguousarray(matrix)
 
 
 @jit(
@@ -413,7 +419,7 @@ def convert_to_validated_penta(
 
     # NOTE: this validation covers both the "penta_row" format and any other format
     #       to be sure that the conversion functions work correctly
-    validate_penta(matrix=converted_matrix)
+    converted_matrix = get_validated_penta(matrix=converted_matrix)
 
     return converted_matrix, overwrite
 

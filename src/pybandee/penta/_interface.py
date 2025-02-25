@@ -13,16 +13,22 @@ functions. It provides the following functions:
 # === Imports ===
 
 import numpy as np
-from _ptrans1 import ptrans1_factorize
-from _utils import PentaDiagonalMatrixFormat, convert_to_validated_penta
 
-from pybandee._utils import (
+from .._utils import (
     LinearSystemSolution,
     MatrixFactorization,
     RealNumericArrayLike,
+    get_validated_real_numeric_1d_array_like,
 )
+from ._penta_utils import (
+    PentaDiagonalMatrixFormat,
+    convert_to_validated_penta,
+    is_data_linked,
+)
+from ._ptrans1 import ptrans1_factorize, ptrans1_solve_single_rhs
 
 # === Functions ===
+
 
 # TODO: the smallest possible pentadiagonal matrix is 3x3 and not 5x5
 def penta_factorize(
@@ -43,24 +49,28 @@ def penta_factorize(
         To be truly pentadiagonal, it has to have at least 5 rows and columns when
         converted to the dense format.
         Its data type is internally promoted to ``numpy.float64``.
-    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, "``dense``"}, default=``"penta_row"``
+    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, ``"dense"``}, default=``"penta_row"``
         The storage format of the input matrix. Any format other than ``"penta_row"``
         will require a conversion since the underlying algorithms are tailored for the
         pentadiagonal row-major format. The shape of ``matrix`` is given in brackets
         where ``p`` is the number of rows/columns of the dense equivalent of ``matrix``.
 
         - ``"penta_row"``: the pentadiagonal row-major format (C-order) which requires
-            no conversion and is thus the most efficient format (``(p, 5)``)
+            no conversion and is thus the most efficient format (``shape=(p, 5)``)
         - ``"lapack_general_banded"``: the LAPACK general banded matrix format as
-            expected by the function :func:`scipy.linalg.solve_banded` (``(5, p)``)
-        - ``"dense"``: the dense matrix format (``(p, p)``)
+            expected by the function :func:`scipy.linalg.solve_banded`
+            (``shape=(5, p)``)
+        - ``"dense"``: the dense matrix format (``shape=(p, p)``)
 
         Please refer to the Notes section for details.
 
     overwrite : :obj:`bool`, default=``False``
         Whether to overwrite ``matrix`` with the factorised matrix (``True``) or not
         (``False``).
-        Note that this is only relevant if ``matrix_format = "penta_row"``.
+        Note that this is only relevant if ``matrix_format="penta_row"`` and no other
+        type conversion is performed. Applicability is checked on the fly making sure
+        that overwriting is still performed despite ``overwrite=False`` in case the link
+        between the input and the converted matrix is broken.
     check_finite : :obj:`bool`, default=``True``
         Whether to check that the input matrix contains only finite values (``True``) or
         not (``False``).
@@ -170,11 +180,13 @@ def penta_factorize(
      [    *   *   *   *   *   *   1    ]]
     ```
 
-    """
+    """  # noqa: E501
 
     # --- Input Validation and Conversion ---
 
-    matrix, overwrite = convert_to_validated_penta(
+    # NOTE: ``matrix`` or its copy will be overwritten with the factorisation, thus the
+    #       variable name is chosen to reflect this
+    factorization, overwrite = convert_to_validated_penta(
         matrix=matrix,
         matrix_name="matrix",
         matrix_format=matrix_format,
@@ -184,25 +196,27 @@ def penta_factorize(
 
     # --- Factorisation ---
 
-    if overwrite:
-        factorization = matrix
-    else:
-        factorization = matrix.copy()
+    if not overwrite:
+        factorization = factorization.copy()
 
     info = ptrans1_factorize(matrix=factorization)
 
-    if info >= 0:
+    if info == 0:
         return MatrixFactorization(
             factorization=factorization,
             method="prtrans1",
         )
 
-    raise np.linalg.LinAlgError(
-        f"Factorisation failed due to a zero-divsion at row index {-info - 1}. "
-        f"The matrix is ill-conditioned for the PTRANS-I algorithm."
-    )
+    if info > 0:
+        raise np.linalg.LinAlgError(
+            f"Factorisation failed due to a zero-division at row index {info - 1}. "
+            f"The matrix is ill-conditioned for the PTRANS-I algorithm."
+        )
+
+    raise AssertionError(f"Unexpected error during factorisation, got {info=}")
 
 
+# TODO: add matrix ``rhs`` support
 def penta_solve(
     lhs_matrix: RealNumericArrayLike,
     rhs: RealNumericArrayLike,
@@ -219,14 +233,14 @@ def penta_solve(
     Parameters
     ----------
     lhs_matrix : ArrayLike of shape (m, n)
-        The left-hand side matrix of the linear system whose storage format is given by
-        ``matrix_format``. To be truly pentadiagonal, it has to have at least 5 rows and
-        columns when converted to the dense format. Its data type is internally promoted
-        to ``numpy.float64``.
+        The left-hand side matrix ``A`` of the linear system whose storage format is
+        given by ``matrix_format``. To be truly pentadiagonal, it has to have at least
+        5 rows and columns when converted to the dense format. Its data type is
+        internally promoted to ``numpy.float64``.
     rhs : ArrayLike of shape (m,)
-        The right-hand side vector of the linear system. Its data type is internally
-        promoted to ``numpy.float64``.
-    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, "``dense``"}, default=``"penta_row"``
+        The right-hand side vector ``b`` of the linear system. Its data type is
+        internally promoted to ``numpy.float64``.
+    matrix_format : {``"penta_row"``, ``"lapack_general_banded"``, ``"dense"``}, default=``"penta_row"``
         The storage format of ``lhs_matrix``. Any format other than ``"penta_row"`` will
         require a conversion since the underlying algorithms are tailored for the
         pentadiagonal row-major format. The shape of ``lhs_matrix`` is given in brackets
@@ -234,18 +248,21 @@ def penta_solve(
         ``lhs_matrix``.
 
         - ``"penta_row"``: the pentadiagonal row-major format (C-order) which requires
-            no conversion and is thus the most efficient format (``(p, 5)``)
+            no conversion and is thus the most efficient format (``shape=(p, 5)``)
         - ``"lapack_general_banded"``: the LAPACK general banded matrix format as
-            expected by the function :func:`scipy.linalg.solve_banded` (``(5, p)``)
-        - ``"dense"``: the dense matrix format (``(p, p)``)
+            expected by the function :func:`scipy.linalg.solve_banded`
+            (``shape=(5, p)``)
+        - ``"dense"``: the dense matrix format (``shape=(p, p)``)
 
         Please refer to the Notes section for details.
 
     lhs_overwrite, rhs_overwrite : :obj:`bool`, default=``False``
         Whether to overwrite ``lhs_matrix`` (``True``) or ``rhs`` (``True``) with the
         factorised matrix and solution, respectively, or not (``False``).
-        These are only relevant if no conversion that breaks the link between the
-        input and converted/validated data is performed.
+        These are only relevant if no type conversion is performed. Applicability is
+        checked on the fly making sure that overwriting is still performed despite
+        ``lhs_overwrite=False`` or ``rhs_overwrite=False`` in case the link between the
+        input and the converted data is broken.
     check_finite : :obj:`bool`, default=``True``
         Whether to check that the input contains only finite values (``True``) or not
         (``False``).
@@ -269,20 +286,103 @@ def penta_solve(
     TypeError
         If ``lhs_matrix``, ``rhs``, or ``matrix_format`` are not of expected type.
     ValueError
-        If ``lhs_matrix`` or ``rhs`` do not contain finite values and ``check_finite=True``.
+        If ``lhs_matrix`` or ``rhs`` do not contain finite values and
+        ``check_finite=True``.
     ValueError
-        If ``lhs_matrix`` cannot be converted to the ``matrix_format="penta_row"`` format.
+        If ``lhs_matrix`` cannot be converted to the ``matrix_format="penta_row"``
+        format.
     LinAlgError
         If the linear system cannot be solved.
 
-    """
+    """  # noqa: E501
 
     # --- Input Validation and Conversion ---
 
-    lhs_matrix, lhs_overwrite = convert_to_validated_penta(
+    # NOTE: ``lhs`` or its copy will be overwritten with the factorisation, thus the
+    #       variable name is chosen to reflect this
+    lhs_factorization, lhs_overwrite = convert_to_validated_penta(
         matrix=lhs_matrix,
         matrix_name="lhs_matrix",
         matrix_format=matrix_format,
         overwrite=lhs_overwrite,
         check_finite=check_finite,
     )
+
+    # NOTE: ``rhs`` or its copy will be overwritten with the solution, thus the variable
+    #       name is chosen to reflect this
+    rhs_solution = get_validated_real_numeric_1d_array_like(
+        value=rhs,
+        name="rhs",
+        min_size=lhs_factorization.shape[0],
+        max_size=lhs_factorization.shape[0],
+        enforce_finite=check_finite,
+        output_dtype=np.float64,
+    )
+
+    if not rhs_overwrite:
+        rhs_overwrite = not is_data_linked(
+            array=rhs_solution,
+            original=rhs,
+        )
+
+    # --- Factorisation and Solve ---
+
+    # if required, copies are made
+    if not lhs_overwrite:
+        lhs_factorization = lhs_factorization.copy()
+
+    if not rhs_overwrite:
+        rhs_solution = rhs_solution.copy()
+
+    info = ptrans1_factorize(matrix=lhs_factorization)
+
+    if info == 0:
+        ptrans1_solve_single_rhs(
+            factorization=lhs_factorization,
+            rhs=rhs_solution,
+        )
+
+        return LinearSystemSolution(
+            solution=rhs_solution,
+            factorization=lhs_factorization,
+            method="ptrans1",
+        )
+
+    if info > 0:
+        raise np.linalg.LinAlgError(
+            f"Factorisation failed due to a zero-division at row index {-info - 1}. "
+            f"The matrix is ill-conditioned for the PTRANS-I algorithm.\n"
+            f"Solving step was not attempted."
+        )
+
+    raise AssertionError(f"Unexpected error during factorisation, got {info=}")
+
+
+if __name__ == "__main__":
+    from scipy.linalg import solve_banded
+
+    np.random.seed(0)
+
+    a = np.random.rand(5, 13)
+    a_og = a.copy()
+    b = np.random.rand(a.shape[1])
+
+    print("LAPACK")
+    x_lapack = solve_banded(
+        l_and_u=(2, 2),
+        ab=a,
+        b=b,
+    )
+
+    print("PENTA")
+    x_penta = penta_solve(
+        lhs_matrix=a,
+        matrix_format="lapack_general_banded",
+        rhs=b,
+        lhs_overwrite=True,
+        rhs_overwrite=True,
+    )
+
+    assert np.array_equal(a, a_og)
+    assert np.allclose(x_penta.solution, x_lapack)
+    assert np.allclose(b, x_lapack)
