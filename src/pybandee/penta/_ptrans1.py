@@ -119,7 +119,44 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
     matrix[1, 4] = be_i_minus_1
 
     # Central rows
-    for row_index in range(2, num_rows - 2):
+    # NOTE: this loop is manually unrolled by a factor of 2
+    split_row_index = num_rows - 2 - ((num_rows - 4) % 2)
+    for row_index in range(2, split_row_index, 2):
+        e_i = matrix[row_index, 0]
+        ga_i = matrix[row_index, 1] - al_i_minus_2 * e_i
+        mu_i = matrix[row_index, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
+        if mu_i == 0.0:
+            return row_index + 1
+
+        al_i_minus_2 = al_i_minus_1
+        al_i_minus_1 = (matrix[row_index, 3] - be_i_minus_1 * ga_i) / mu_i
+
+        be_i_minus_2 = be_i_minus_1
+        be_i_minus_1 = matrix[row_index, 4] / mu_i
+
+        matrix[row_index, 1] = ga_i
+        matrix[row_index, 2] = mu_i
+        matrix[row_index, 3] = al_i_minus_1
+        matrix[row_index, 4] = be_i_minus_1
+
+        e_i = matrix[row_index + 1, 0]
+        ga_i = matrix[row_index + 1, 1] - al_i_minus_2 * e_i
+        mu_i = matrix[row_index + 1, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
+        if mu_i == 0.0:
+            return row_index + 2
+
+        al_i_minus_2 = al_i_minus_1
+        al_i_minus_1 = (matrix[row_index + 1, 3] - be_i_minus_1 * ga_i) / mu_i
+
+        be_i_minus_2 = be_i_minus_1
+        be_i_minus_1 = matrix[row_index + 1, 4] / mu_i
+
+        matrix[row_index + 1, 1] = ga_i
+        matrix[row_index + 1, 2] = mu_i
+        matrix[row_index + 1, 3] = al_i_minus_1
+        matrix[row_index + 1, 4] = be_i_minus_1
+
+    for row_index in range(split_row_index, num_rows - 2):
         e_i = matrix[row_index, 0]
         ga_i = matrix[row_index, 1] - al_i_minus_2 * e_i
         mu_i = matrix[row_index, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
@@ -303,7 +340,7 @@ if __name__ == "__main__":
     from scipy.linalg import solve_triangular
 
     np.random.seed(0)
-    test = np.random.rand(7, 5)
+    test = np.random.rand(11, 5)
     test[::, 2] += 2.0
     test_dense = np.zeros((test.shape[0], test.shape[0]))
 
