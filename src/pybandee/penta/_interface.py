@@ -356,33 +356,3 @@ def penta_solve(
         )
 
     raise AssertionError(f"Unexpected error during factorisation, got {info=}")
-
-
-if __name__ == "__main__":
-    from scipy.linalg import solve_banded
-
-    np.random.seed(0)
-
-    a = np.random.rand(5, 13)
-    a_og = a.copy()
-    b = np.random.rand(a.shape[1])
-
-    print("LAPACK")
-    x_lapack = solve_banded(
-        l_and_u=(2, 2),
-        ab=a,
-        b=b,
-    )
-
-    print("PENTA")
-    x_penta = penta_solve(
-        lhs_matrix=a,
-        matrix_format="lapack_general_banded",
-        rhs=b,
-        lhs_overwrite=True,
-        rhs_overwrite=True,
-    )
-
-    assert np.array_equal(a, a_og)
-    assert np.allclose(x_penta.solution, x_lapack)
-    assert np.allclose(b, x_lapack)

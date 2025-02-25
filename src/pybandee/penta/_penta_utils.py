@@ -28,10 +28,10 @@ PentaDiagonalMatrixFormat = Literal[
     "dense",
 ]
 
-# === Functions ===
+# === Auxiliary Functions ===
 
 
-def get_validated_penta(matrix: NDArray[np.float64]) -> NDArray[np.float64]:
+def _get_validated_penta(matrix: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Validates a matrix in pentadiagonal and copies it to ensure that it is in row-major
     (C-order) format if required.
@@ -75,7 +75,7 @@ def get_validated_penta(matrix: NDArray[np.float64]) -> NDArray[np.float64]:
     nopython=True,
     cache=True,
 )
-def convert_lapack_general_banded_to_penta(
+def _convert_lapack_general_banded_to_penta(
     matrix: NDArray[np.float64],
 ) -> Tuple[NDArray[np.float64], int]:
     """
@@ -184,7 +184,7 @@ def _raise_error_lapack_general_banded_to_penta(
     nopython=True,
     cache=True,
 )
-def convert_dense_to_penta(
+def _convert_dense_to_penta(
     matrix: NDArray[np.float64],
 ) -> Tuple[NDArray[np.float64], int]:
     """
@@ -300,6 +300,9 @@ def _raise_error_dense_to_penta(
     )
 
 
+# === Functions ===
+
+
 def convert_to_validated_penta(
     matrix: RealNumericArrayLike,
     matrix_name: str,
@@ -391,11 +394,11 @@ def convert_to_validated_penta(
         try:
             converter, converter_error_checker = {
                 "lapack_general_banded": (
-                    convert_lapack_general_banded_to_penta,
+                    _convert_lapack_general_banded_to_penta,
                     _raise_error_lapack_general_banded_to_penta,
                 ),
                 "dense": (
-                    convert_dense_to_penta,
+                    _convert_dense_to_penta,
                     _raise_error_dense_to_penta,
                 ),
             }[matrix_format]
@@ -419,7 +422,7 @@ def convert_to_validated_penta(
 
     # NOTE: this validation covers both the "penta_row" format and any other format
     #       to be sure that the conversion functions work correctly
-    converted_matrix = get_validated_penta(matrix=converted_matrix)
+    converted_matrix = _get_validated_penta(matrix=converted_matrix)
 
     return converted_matrix, overwrite
 
@@ -444,11 +447,11 @@ if __name__ == "__main__":
 
     print(dense, end="\n\n")
 
-    penta, info = convert_lapack_general_banded_to_penta(test)
+    penta, info = _convert_lapack_general_banded_to_penta(test)
     print(test, end="\n\n")
     print(penta)
 
-    penta_from_dense, info = convert_dense_to_penta(dense)
+    penta_from_dense, info = _convert_dense_to_penta(dense)
     print(penta_from_dense)
     assert np.allclose(penta, penta_from_dense, equal_nan=True)
 
