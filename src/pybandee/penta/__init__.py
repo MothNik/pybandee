@@ -20,9 +20,10 @@ from ._interface import (  # noqa: F401
     penta_slogdet_from_factorization,
     penta_solve,
 )
-from ._penta_utils import convert_to_validated_penta  # noqa: F401
+from ._penta_utils import convert_to_validated_penta # noqa: F401
 from ._ptrans1 import (  # noqa: F401
     ptrans1_factorize,
     ptrans1_slogdet,
     ptrans1_solve_single_rhs,
+    ptrans1_symmetric_inverse_central_penta_bands,
 )

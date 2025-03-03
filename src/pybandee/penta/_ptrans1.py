@@ -257,6 +257,106 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
     return sign, logabsdet
 
 
+def ptrans1_symmetric_inverse_central_penta_bands(
+    factorization: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """
+    Computes the central pentadiagonal part of the inverse of a SYMMETRIC pentadiagonal
+    matrix using its factors obtained from the PTRANS-I algorithm.
+
+    Rather than forming the full inverse (which is dense), only the part with the same
+    sparsity pattern as the original matrix is computed, which is way more efficient.
+
+    Parameters
+    ----------
+    factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
+        The factorisation of the pentadiagonal matrix to compute the inverse of.
+        It has to be ordered in row-major format (C-order).
+
+    Returns
+    -------
+    inverse_penta_part : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
+        The central part pentadiagonal part of the inverse of the original matrix.
+
+    """  # noqa: E501
+
+    num_rows = factorization.shape[0]
+    inverse_penta_part = np.zeros(shape=(num_rows, 5), dtype=np.float64)
+    mu_values = np.ascontiguousarray(factorization[:, 2])
+
+    # this algorithms starts from the lower right and moves its way up to the upper left
+    # corner of the matrix
+    # for this, the diagonal matrix W = diag(1 / mu), the strictly upper triangular
+    # matrix T = I - U are required
+
+    # last row
+    # NOTE: the current matrix view to work on is of shape (3, 5)
+    # NOTE: rows are indicated by letters a, b, and c because only 3 rows need to be
+    #       stored in memory at the same time
+    # NOTE: columns are indicated by numbers -2, -1, +0, +1, and +2 as an offset of the
+    #       main diagonal (m is minus, p is plus)
+
+    # last row
+    w_c_c = 1.0 / mu_values[num_rows - 1]
+    t_b_p1 = -factorization[num_rows - 2, 3]
+
+    x_c_c = w_c_c
+    x_b_p1 = w_c_c * t_b_p1
+
+    inverse_penta_part[num_rows - 1, 4] = 0.0
+    inverse_penta_part[num_rows - 1, 3] = 0.0
+    inverse_penta_part[num_rows - 1, 2] = x_c_c
+    inverse_penta_part[num_rows - 1, 1] = x_b_p1
+    # the first column cannot be computed yet
+
+    # second last row
+    w_b_b = 1.0 / mu_values[num_rows - 2]
+    x_b_b = w_b_b + t_b_p1 * x_b_p1
+
+    inverse_penta_part[num_rows - 2, 4] = 0.0
+    inverse_penta_part[num_rows - 2, 3] = x_b_p1
+    inverse_penta_part[num_rows - 2, 2] = x_b_b
+
+    # central rows
+    for row_index in range(num_rows - 3, 0, -1):
+        t_a_p2 = -factorization[row_index, 4]
+        t_a_p1 = -factorization[row_index, 3]
+        w_a_a = 1.0 / mu_values[row_index]
+
+        x_a_p2 = t_a_p1 * x_b_p1 + t_a_p2 * x_c_c
+        x_a_p1 = t_a_p1 * x_b_b + t_a_p2 * x_b_p1
+        x_a_a = w_a_a + t_a_p1 * x_a_p1 + t_a_p2 * x_a_p2
+
+        inverse_penta_part[row_index + 2, 0] = x_a_p2
+        inverse_penta_part[row_index + 1, 1] = x_a_p1
+        inverse_penta_part[row_index, 4] = x_a_p2
+        inverse_penta_part[row_index, 3] = x_a_p1
+        inverse_penta_part[row_index, 2] = x_a_a
+
+        x_c_c = x_b_b
+        x_b_p1 = x_a_p1
+        x_b_b = x_a_a
+
+    # first row
+    t_a_p2 = -factorization[0, 4]
+    t_a_p1 = -factorization[0, 3]
+    w_a_a = 1.0 / mu_values[0]
+
+    x_a_p2 = t_a_p1 * x_b_p1 + t_a_p2 * x_c_c
+    x_a_p1 = t_a_p1 * x_b_b + t_a_p2 * x_b_p1
+    x_a_a = w_a_a + t_a_p1 * x_a_p1 + t_a_p2 * x_a_p2
+
+    inverse_penta_part[2, 0] = x_a_p2
+    inverse_penta_part[1, 1] = x_a_p1
+    inverse_penta_part[0, 4] = x_a_p2
+    inverse_penta_part[0, 3] = x_a_p1
+    inverse_penta_part[0, 2] = x_a_a
+    inverse_penta_part[0, 1] = 0.0
+    inverse_penta_part[0, 0] = 0.0
+
+    return inverse_penta_part
+
+
 @jit(
     "void(float64[:, ::1], float64[::1])",
     nopython=True,
@@ -384,9 +484,17 @@ if __name__ == "__main__":
 
     from scipy.linalg import solve_triangular
 
+    np.set_printoptions(precision=6, suppress=True)
+
     np.random.seed(0)
-    test = np.random.rand(10, 5)
-    test[::, 2] += 2.0
+    test = np.empty(shape=(7, 5))
+    vect = np.random.rand(test.shape[0] - 2)
+    test[2::, 0] = vect.copy()
+    test[0:-2, 4] = vect.copy()
+    vect = np.random.rand(test.shape[0] - 1)
+    test[1::, 1] = vect.copy()
+    test[0:-1, 3] = vect.copy()
+    test[::, 2] = 2.0 + np.random.rand(test.shape[0])
     test_dense = np.zeros((test.shape[0], test.shape[0]))
 
     test_dense += np.diag(test[2:, 0], k=-2)
@@ -435,13 +543,22 @@ if __name__ == "__main__":
         np.diag(1.0 / fact[::, 2]),
         lower=False,
     )
+    u_minus_eye = np.eye(test.shape[0]) - u_mat
+    print(u_minus_eye @ test_inv, end="\n----\n")
     eye_minus_l = np.eye(test.shape[0]) - l_mat / fact[::, 2][np.newaxis, ::]
-    test_inv_rec = uinv_dinv + test_inv @ eye_minus_l
-    print(np.round(test_inv, 2), end="\n----\n")
-    print(np.round(uinv_dinv, 2), end="\n----\n")
-    print(np.round(1.0 / fact[::, 2], 2), end="\n----\n")
-    print(np.round(test_inv @ eye_minus_l, 2), end="\n----\n")
-    print(np.round(test_inv_rec, 2), end="\n----\n")
+    test_inv_rec = test_inv @ eye_minus_l
+
+    test_penta_inv = ptrans1_symmetric_inverse_central_penta_bands(fact)
+
+    print("\n----\n")
+    print(test_inv, end="\n----\n")
+    # print(uinv_dinv, end="\n----\n")
+    # print(1.0 / fact[::, 2], end="\n----\n")
+    # print(eye_minus_l, end="\n----\n")
+    # print(test_inv_rec, end="\n----\n")
+    print(test_penta_inv)
+
+    raise KeyboardInterrupt()
 
     print("\n\nTest inverse diagonal")
     print(np.diag(np.linalg.inv(test_dense)), end="\n\n")

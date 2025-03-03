@@ -69,4 +69,55 @@ def test_pentadiagonal_slogdet() -> None:
     return
 
 
-test_pentadiagonal_slogdet()
+def test_pentadiagonal_symmetric_inverse_central_penta_bands() -> None:
+
+    np.random.seed(0)
+
+    for num_rows in (5, 12, 13, 100, 101):
+
+        penta_matrix = np.zeros(shape=(num_rows, 5))
+        dense_matrix = np.zeros(shape=(num_rows, num_rows))
+
+        vect = np.random.rand(num_rows - 2)
+        penta_matrix[2:, 0] = vect.copy()
+        penta_matrix[0:-2, 4] = vect.copy()
+        dense_matrix += np.diag(vect, k=-2)
+        dense_matrix += np.diag(vect, k=2)
+        vect = np.random.rand(num_rows - 1)
+        penta_matrix[1:, 1] = vect.copy()
+        penta_matrix[0:-1, 3] = vect.copy()
+        dense_matrix += np.diag(vect, k=-1)
+        dense_matrix += np.diag(vect, k=1)
+        vect = 2.0 + np.random.rand(num_rows)
+        penta_matrix[:, 2] = vect.copy()
+        dense_matrix += np.diag(vect)
+
+        penta.ptrans1_factorize(matrix=penta_matrix)
+        central_inverse = penta.ptrans1_symmetric_inverse_central_penta_bands(
+            factorization=penta_matrix
+        )
+
+        dense_inverse = np.linalg.inv(dense_matrix)
+
+        assert np.allclose(
+            np.diagonal(dense_inverse, offset=-2),
+            central_inverse[2:, 0],
+        )
+        assert np.allclose(
+            np.diagonal(dense_inverse, offset=-1),
+            central_inverse[1:, 1],
+        )
+        assert np.allclose(
+            np.diagonal(dense_inverse),
+            central_inverse[:, 2],
+        )
+        assert np.allclose(
+            np.diagonal(dense_inverse, offset=1),
+            central_inverse[:-1, 3],
+        )
+        assert np.allclose(
+            np.diagonal(dense_inverse, offset=2),
+            central_inverse[:-2, 4],
+        )
+
+    return
