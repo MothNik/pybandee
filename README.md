@@ -1,19 +1,21 @@
 # 🧮 pybandee ⚡️
 
-A Python package specialised in factorising and solving banded matrices. Currently,
-the package supports the following functionalities:
+**⚠⚠⚠ Important Note ⚠⚠⚠**
 
-- pentadiagonal factorisation and solving
-- computation of the log-determinant and inverse elements of a pentadiagonal matrix
-
-**⚠ Important Note ⚠**
-
-This package is currently only an experimental alpha version that is missing
+This package is currently only **an experimental alpha version** that is missing
 
 - Python interfaces with input validation
 - documentation
 - tests that cover all possible edge cases
 - citation of the original papers
+
+**⚠⚠⚠ Important Note ⚠⚠⚠**
+
+A Python package specialised in factorising and solving banded matrices. Currently,
+the package supports the following functionalities:
+
+- pentadiagonal factorisation and solving
+- computation of the log-determinant and inverse elements of a pentadiagonal matrix
 
 # ☁️➡️📦 Installation
 
@@ -173,3 +175,6 @@ numpy_inverse_band[:-2, 4] = np.diag(numpy_inverse, k=2)
 
 assert np.allclose(inverse_band, numpy_inverse_band)
 ```
+
+All of the functions can be invoked in a `numba.jit`-decorated function to get the
+maximum performance benefits ⚡️
