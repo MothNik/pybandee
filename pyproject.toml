@@ -22,7 +22,7 @@ package-data = {"*" = ["AUTHORS.txt", "VERSION.txt", "_utils/pybandee.mplstyle"]
 version = {file = "src/pybandee/VERSION.txt"}
 readme = {file = ["README.md"]}
 dependencies = {file = "requirements/base.txt"}
-optional-dependencies = {dev = {file = "requirements/dev.txt"}, git_ci = {file = "requirements/git_ci.txt"}}
+optional-dependencies = {dev = {file = "requirements/dev.txt"}, fast = {file = "requirements/fast.txt"}, git_ci = {file = "requirements/git_ci.txt"}}
 
 [tool.isort]
 profile = "black"
