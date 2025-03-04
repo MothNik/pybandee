@@ -7,16 +7,11 @@ This module provides utilities for working with pentadiagonal matrices, namely
 - solving
 - computation of their log determinant
 
-For accessing the Numba-compatible low-level functions, the submodule :mod:`low_level`
+For accessing the Numba-compatible low-level functions, the submodule :mod:`numba`
 is available.
 
 """
 
 # === Imports ===
 
-from ._ptrans1 import (  # noqa: F401
-    ptrans1_factorize,
-    ptrans1_slogdet,
-    ptrans1_solve_single_rhs,
-    ptrans1_symmetric_inverse_central_penta_bands,
-)
+
