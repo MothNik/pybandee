@@ -13,18 +13,6 @@ the package supports the following functionalities:
 
 import os as _os
 
-from ._utils import (  # noqa: F401
-    Integer,
-    RealNumeric,
-    RealNumericArrayLike,
-    apply_pybandee_plot_style,
-    get_pybandee_style,
-    get_validated_integer,
-    get_validated_real_numeric,
-    get_validated_real_numeric_1d_array_like,
-    pybandee_plot_style,
-)
-
 # === Package Metadata ===
 
 _AUTHOR_FILE_PATH = _os.path.join(_os.path.dirname(__file__), "AUTHORS.txt")

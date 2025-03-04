@@ -19,26 +19,41 @@ def test_pentadiagonal_solve() -> None:
 
     for num_rows in (5, 12, 13):
         a = np.random.rand(5, num_rows)
-        a_og = a.copy()
         b = np.random.rand(a.shape[1])
 
+        # Computation of the reference solution
         x_lapack = solve_banded(
             l_and_u=(2, 2),
             ab=a,
             b=b,
         )
 
-        x_penta = penta.penta_solve(
-            lhs_matrix=a,
-            matrix_format="lapack_general_banded",
-            rhs=b,
-            lhs_overwrite=True,
-            rhs_overwrite=True,
+        # Casting to the row-major banded format
+        factorization = np.empty(shape=(a.shape[1], 5))
+
+        factorization[0:2, 0] = 0.0
+        factorization[0, 1] = 0.0
+        factorization[num_rows - 1, 3] = 0.0
+        factorization[num_rows - 2 :, 4] = 0.0
+
+        factorization[2:, 0] = a[4, 0 : num_rows - 2]
+        factorization[1:, 1] = a[3, 0 : num_rows - 1]
+        factorization[:, 2] = a[2, :]
+        factorization[: num_rows - 1, 3] = a[1, 1:]
+        factorization[: num_rows - 2, 4] = a[0, 2:]
+
+        # Factorization
+        info = penta.ptrans1_factorize(matrix=factorization)
+        assert info == 0
+
+        # Solution
+        x_penta = b.copy()
+        penta.ptrans1_solve_single_rhs(
+            factorization=factorization,
+            rhs=x_penta,
         )
 
-        assert np.array_equal(a, a_og)
-        assert np.allclose(x_penta.solution, x_lapack)
-        assert np.allclose(b, x_lapack)
+        assert np.allclose(x_penta, x_lapack)
 
     return
 
@@ -61,10 +76,14 @@ def test_pentadiagonal_slogdet() -> None:
 
         sloget_dense = np.linalg.slogdet(dense_matrix)
 
-        sloget_penta = penta.penta_slogdet(matrix=penta_matrix)
+        factorization = penta_matrix.copy()
+        info = penta.ptrans1_factorize(matrix=factorization)
+        assert info == 0
 
-        assert np.isclose(sloget_penta.sign, sloget_dense.sign)
-        assert np.isclose(sloget_penta.logabsdet, sloget_dense.logabsdet)
+        sign, logabsdet = penta.ptrans1_slogdet(factorization=factorization)
+
+        assert np.isclose(sign, sloget_dense.sign)
+        assert np.isclose(logabsdet, sloget_dense.logabsdet)
 
     return
 
