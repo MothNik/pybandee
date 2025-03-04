@@ -256,7 +256,11 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
 
     return sign, logabsdet
 
-
+@jit(
+    "float64[:, ::1](float64[:, ::1])",
+    nopython=True,
+    cache=True,
+)
 def ptrans1_symmetric_inverse_central_penta_bands(
     factorization: NDArray[np.float64],
 ) -> NDArray[np.float64]:
