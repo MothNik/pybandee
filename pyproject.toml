@@ -1,0 +1,86 @@
+[build-system]
+requires = [
+    "setuptools>=65",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybandee"
+description = "A fast Python package specialised on solving banded linear systems"
+authors = [{name = "Niklas Zell", email = "nik.zoe@web.de"}]
+requires-python = ">=3.9"
+keywords = ["python", "numba", "linear-algebra", "banded-matrices", "linear-systems", "pentadiagonal-linear-systems"]
+readme = "README.md"
+license = {file = "LICENSE"}
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[tool.setuptools]
+include-package-data = true
+package-data = {"*" = ["AUTHORS.txt", "VERSION.txt", "_utils/pybandee.mplstyle"]}
+
+[tool.setuptools.dynamic]
+version = {file = "src/pybandee/VERSION.txt"}
+dependencies = {file = "requirements/base.txt"}
+optional-dependencies = {dev = {file = "requirements/dev.txt"}, fast = {file = "requirements/fast.txt"}, git_ci = {file = "requirements/git_ci.txt"}}
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.black]
+target-version = [
+    "py38",
+    "py39",
+    "py310",
+    "py311",
+    "py312",
+]
+
+[tool.pyright]
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "examples/"
+]
+
+[tool.ruff]
+# Enable pycodestyle (`E`), Pyflakes (`F`) checks.
+lint.select = ["E", "F"]
+lint.ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+# "A", "B", "C", "D", "E", "F", "..."
+lint.fixable = []
+lint.unfixable = []
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv*",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    ".vscode",
+]
+
+line-length = 88
+target-version = "py39"
+
+# Allow unused variables when underscore-prefixed.
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
