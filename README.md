@@ -9,6 +9,9 @@ This package is currently only **an experimental alpha version** that is missing
 - tests that cover all possible edge cases
 - citation of the original papers
 
+Changes in the API and the implementation are likely to happen in the future. Please
+be sure to check the changelog for updates (see [here](CHANGELOG.md)).
+
 **⚠⚠⚠ Important Note ⚠⚠⚠**
 
 A Python package specialised in factorising and solving banded matrices. Currently,
@@ -17,7 +20,9 @@ the package supports the following functionalities:
 - pentadiagonal factorisation and solving
 - computation of the log-determinant and inverse elements of a pentadiagonal matrix
 
-# ☁️➡️📦 Installation
+<br><br><br>
+
+## ☁️➡️📦 Installation
 
 While this package can be installed and run without the optional dependency `numba`
 as
@@ -33,7 +38,22 @@ style code will be significantly faster. This can be done with
 pip install pybandee["fast"]
 ```
 
-## 5️⃣ Pentadiagonal Matrices
+<br><br><br>
+
+## 📜✍️ Changelog and issues
+
+The changelog can be found in the file `CHANGELOG.md` or alternatively via
+[this Link](CHANGELOG.md).
+
+If you encounter any issues or have suggestions for improvements, please feel free to
+open an issue on the
+[GitHub repository's issue tracker](https://github.com/MothNik/pybandee/issues)
+
+<br><br><br>
+
+## 📚📦🔬 Usage
+
+### 5️⃣ Pentadiagonal Matrices
 
 **⚠ Currently, only the Numba low-level implementation is available ⚠**<br>
 **Please install the package with `pip install pybandee["fast"]` to get the performance benefits**
@@ -48,7 +68,8 @@ a simple $\mathbf{L}\mathbf{U}$ factorisation can be computed using the _PTRANS-
 algorithm. This can be solved efficiently and allows for the computation of additional
 properties such as the log-determinant and inverse elements.
 
-For the `numba` low-level implementations, the pentadiagonal matrix
+For the `numba` low-level implementations, the pentadiagonal matrix $\mathbf{A}$ that
+looks like
 
 $$
 \mathbf{A} = \begin{bmatrix}
