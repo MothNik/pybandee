@@ -1,5 +1,5 @@
 """
-Module :mod:`penta.numba`
+Module :mod:`penta.numba_funcs`
 
 This module provides all the Numba ``jit``-compatible utilities for working with
 pentadiagonal matrices, namely

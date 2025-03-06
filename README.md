@@ -86,11 +86,11 @@ where the entries marked with `*` are not used and can be any value.
 A linear system can be solved like
 
 ```python
- === Imports ===
+# === Imports ===
 
 import numpy as np
 
-from pybandee.penta import numba as jit_penta
+from pybandee.penta import numba_funcs as jit_penta
 
 # === Setup ===
 

@@ -8,7 +8,7 @@ This test suite implements all tests for the module :mod:`pybandee.penta`
 import numpy as np
 from scipy.linalg import solve_banded
 
-from pybandee.penta import numba as penta
+from pybandee.penta import numba_funcs as penta
 
 # === Tests ===
 

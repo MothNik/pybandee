@@ -1,5 +1,5 @@
 """
-Module :mod:`penta._ptrans1`
+Module :mod:`penta.numba_funcs._ptrans1`
 
 This module implements the PTRANS-I algorithm for the factorisation and solving of
 pentadiagonal linear systems as described in [1]_.
@@ -255,6 +255,7 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
         return 0.0, -np.inf
 
     return sign, logabsdet
+
 
 @jit(
     "float64[:, ::1](float64[:, ::1])",
