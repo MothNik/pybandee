@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pybandee"
 description = "A fast Python package specialised on solving banded linear systems"
-authors = [{name = "Niklas Zell", email = "nik.zoe@web.de"}]
+authors = [{name = "Niklas Zell, Ariana Mónica Silva Peredo", email = "nik.zoe@web.de"}]
 requires-python = ">=3.9"
 keywords = ["python", "numba", "linear-algebra", "banded-matrices", "linear-systems", "pentadiagonal-linear-systems"]
 readme = "README.md"
