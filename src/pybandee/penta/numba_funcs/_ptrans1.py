@@ -7,6 +7,12 @@ pentadiagonal linear systems as described in [1]_.
 It relies heavily on ``numba`` and all its functions can be called in other
 ``jit``-compiled functions.
 
+References
+----------
+.. [1] Askar S. S., Karawia A. A., On Solving Pentadiagonal Linear Systems via
+       Transformations, Mathematical Problems in Engineering, Volume 2015, Article ID
+       232456, DOI: http://dx.doi.org/10.1155/2015/232456
+
 """
 
 # === Imports ===
@@ -98,6 +104,11 @@ def ptrans1_factorize(
     - the left three columns (``e``, ``ga`` "gamma", and ``mu`` "mu") are the factors of
         the lower triangular matrix ``L``
 
+    References
+    ----------
+    .. [1] Askar S. S., Karawia A. A., On Solving Pentadiagonal Linear Systems via
+       Transformations, Mathematical Problems in Engineering, Volume 2015, Article ID
+       232456, DOI: http://dx.doi.org/10.1155/2015/232456
 
     """
 
@@ -258,6 +269,7 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float, i
     factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
         The factorisation of the pentadiagonal matrix to compute the determinant of.
         It has to be ordered in row-major format (C-order).
+        For details, please refer to the :func:`ptrans1_factorize` function.
     is_factorized : :obj:`bool`
         Whether the matrix is already factorised (``True``) or not (``False``).
 
@@ -278,7 +290,6 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float, i
         - ``-2``: ``factorization`` does not have 5 columns
         - ``-1``: ``factorization`` has less than 4 rows
         - ``0``: successful computation
-
 
     """
 
@@ -330,6 +341,7 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
         The factorisation of the pentadiagonal matrix to compute the inverse of.
         It has to be ordered in row-major format (C-order).
+        For details, please refer to the :func:`ptrans1_factorize` function.
 
     Returns
     -------
@@ -343,6 +355,11 @@ def ptrans1_symmetric_inverse_central_penta_bands(
         - ``-1``: ``factorization`` has less than 4 rows
         - ``0``: successful computation
 
+    References
+    ----------
+    .. [1] Takahashi K., Formation of sparse bus impedance matrix and its application to
+           short circuit study, Proc. PICA Conference, 1973
+           
     """  # noqa: E501
 
     # --- Preparation ---
@@ -455,6 +472,7 @@ def ptrans1_solve_single_rhs(
     factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
         The factorisation of the pentadiagonal matrix to solve the linear system with.
         It has to be ordered in row-major format (C-order).
+        For details, please refer to the :func:`ptrans1_factorize` function.
     rhs : :obj:`numpy.ndarray` of shape (m,) and dtype ``numpy.float64``
         The right-hand side of the linear system.
     overwrite_rhs : :obj:`bool`, default=``False``
@@ -474,6 +492,12 @@ def ptrans1_solve_single_rhs(
         - ``-2``: ``factorization`` does not have 5 columns
         - ``-1``: ``factorization`` has less than 4 rows
         - ``0``: successful computation
+
+    References
+    ----------
+    .. [1] Askar S. S., Karawia A. A., On Solving Pentadiagonal Linear Systems via
+       Transformations, Mathematical Problems in Engineering, Volume 2015, Article ID
+       232456, DOI: http://dx.doi.org/10.1155/2015/232456
 
     """
 
