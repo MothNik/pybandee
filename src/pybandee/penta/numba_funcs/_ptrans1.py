@@ -320,7 +320,7 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     """  # noqa: E501
 
     num_rows = factorization.shape[0]
-    inverse_penta_part = np.zeros(shape=(num_rows, 5), dtype=np.float64)
+    inverse_penta_part = np.empty(shape=(num_rows, 5), dtype=np.float64)
     mu_values = np.ascontiguousarray(factorization[:, 2])
 
     # this algorithms starts from the lower right and moves its way up to the upper left
