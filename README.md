@@ -135,30 +135,14 @@ rhs_vector_original = rhs_vector.copy()
 
 # === Factorisation and Solve ===
 
-info = jit_penta.ptrans1_factorize(matrix=lhs_matrix)
+factorization, info = jit_penta.ptrans1_factorize(matrix=lhs_matrix)
 assert info == 0  # ← factorization successful
 
-jit_penta.ptrans1_solve_single_rhs(
-    factorization=lhs_matrix,  # ← is now the factorization
-    rhs=rhs_vector,  # ← will become the solution
+solution, info = jit_penta.ptrans1_solve_single_rhs(
+    factorization=factorization,
+    rhs=rhs_vector,
 )
-
-# === Comparison against Numpy ===
-
-lhs_matrix_dense = np.zeros(
-    shape=(lhs_matrix_original.shape[0], lhs_matrix_original.shape[0]),
-    dtype=np.float64,
-)
-lhs_matrix_dense += np.diag(lhs_matrix_original[2::, 0], k=-2)
-lhs_matrix_dense += np.diag(lhs_matrix_original[1::, 1], k=-1)
-lhs_matrix_dense += np.diag(lhs_matrix_original[:, 2])
-lhs_matrix_dense += np.diag(lhs_matrix_original[:-1, 3], k=1)
-lhs_matrix_dense += np.diag(lhs_matrix_original[:-2, 4], k=2)
-
-assert np.allclose(
-    np.linalg.solve(lhs_matrix_dense, rhs_vector_original),
-    rhs_vector,
-)
+assert info == 0  # ← solve successful
 ```
 
 Further properties can be computed such as
@@ -168,9 +152,10 @@ Further properties can be computed such as
 ```python
 # === Log-Determinant ===
 
-sign, logabsdet = jit_penta.ptrans1_slogdet(factorization=lhs_matrix)
+sign, logabsdet, info = jit_penta.ptrans1_slogdet(factorization=factorization)
 numpy_sign, numpy_logabsdet = np.linalg.slogdet(lhs_matrix_dense)
 
+assert info == 0  # ← log determinant computation successful
 assert np.isclose(sign, numpy_sign)
 assert np.isclose(logabsdet, numpy_logabsdet)
 ```
@@ -181,8 +166,8 @@ assert np.isclose(logabsdet, numpy_logabsdet)
 ```python
 # === Central pentadiagonal band of the inverse ===
 
-inverse_band = jit_penta.ptrans1_symmetric_inverse_central_penta_bands(
-    factorization=lhs_matrix
+inverse_band, info = jit_penta.ptrans1_symmetric_inverse_central_penta_bands(
+    factorization=factorization
 )
 
 numpy_inverse = np.linalg.inv(lhs_matrix_dense)
@@ -194,6 +179,7 @@ numpy_inverse_band[:, 2] = np.diag(numpy_inverse)
 numpy_inverse_band[:-1, 3] = np.diag(numpy_inverse, k=1)
 numpy_inverse_band[:-2, 4] = np.diag(numpy_inverse, k=2)
 
+assert info == 0  # ← inverse computation successful
 assert np.allclose(inverse_band, numpy_inverse_band)
 ```
 
