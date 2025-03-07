@@ -22,11 +22,17 @@ from ..._utils import jit
 
 
 @jit(
-    "int64(float64[:, ::1])",
+    [
+        "Tuple((float64[:, ::1], int64))(float64[:, ::1], boolean)",
+        "Tuple((float64[:, ::1], int64))(float64[:, ::1], Omitted(False))",
+    ],
     nopython=True,
     cache=True,
 )
-def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
+def ptrans1_factorize(
+    matrix: NDArray[np.float64],
+    overwrite_matrix: bool = False,
+) -> Tuple[NDArray[np.float64], int]:
     """
     Factorises a pentadiagonal matrix using the PTRANS-I algorithm. Please refer to the
     Notes section for details.
@@ -34,17 +40,25 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
     Parameters
     ----------
     matrix : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
-        The pentadiagonal matrix to be factorised that will be overwritten with the
-        factors.
+        The pentadiagonal matrix to be factorised.
         It has to be ordered in row-major format (C-order).
+    overwrite_matrix : :obj:`bool`, default=``False``
+        Whether the matrix should be overwritten with the factors (``True``) or not
+        (``False``).
 
     Returns
     -------
+    factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
+        The factorisation of the pentadiagonal matrix.
+        If ``overwrite_matrix=True``, then this will be the same object as ``matrix``.
+        If ``info`` is not ``0``, the factorisation is incomplete.
     info : :obj:`int`
         The return code of the factorisation.
+        - ``-2``: ``matrix`` does not have 5 columns
+        - ``-1``: ``matrix`` has less than 4 rows
         - ``0``: successful factorisation
-        - ``i >= 1``: when the ``i``-th row lead to a zero division, i.e., the matrix
-            is ill-conditioned
+        - ``i >= 1``: when the ``i``-th row lead to a zero division, i.e., ``matrix`` is
+            ill-conditioned
 
     Notes
     -----
@@ -87,36 +101,51 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
 
     """
 
+    # --- Preparation ---
+
+    if overwrite_matrix:
+        factorization = matrix
+    else:
+        factorization = np.empty_like(matrix)
+
+    if matrix.shape[1] != 5:
+        return factorization, -2
+
+    if matrix.shape[0] < 4:
+        return factorization, -1
+
+    # --- Factorisation ---
+
     num_rows = matrix.shape[0]
 
     # first row
     mu_i = matrix[0, 2]
     if mu_i == 0.0:
-        return 1
+        return factorization, 1
 
     al_i_minus_2 = matrix[0, 3] / mu_i
     be_i_minus_2 = matrix[0, 4] / mu_i
 
-    matrix[0, 0] = 0.0
-    matrix[0, 1] = 0.0
-    matrix[0, 2] = mu_i
-    matrix[0, 3] = al_i_minus_2
-    matrix[0, 4] = be_i_minus_2
+    factorization[0, 0] = 0.0
+    factorization[0, 1] = 0.0
+    factorization[0, 2] = mu_i
+    factorization[0, 3] = al_i_minus_2
+    factorization[0, 4] = be_i_minus_2
 
     # second row
     ga_i = matrix[1, 1]
     mu_i = matrix[1, 2] - al_i_minus_2 * ga_i
     if mu_i == 0.0:
-        return 2
+        return factorization, 2
 
     al_i_minus_1 = (matrix[1, 3] - be_i_minus_2 * ga_i) / mu_i
     be_i_minus_1 = matrix[1, 4] / mu_i
 
-    matrix[1, 0] = 0.0
-    matrix[1, 1] = ga_i
-    matrix[1, 2] = mu_i
-    matrix[1, 3] = al_i_minus_1
-    matrix[1, 4] = be_i_minus_1
+    factorization[1, 0] = 0.0
+    factorization[1, 1] = ga_i
+    factorization[1, 2] = mu_i
+    factorization[1, 3] = al_i_minus_1
+    factorization[1, 4] = be_i_minus_1
 
     # Central rows
     # NOTE: this loop is manually unrolled by a factor of 2
@@ -126,7 +155,7 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
         ga_i = matrix[row_index, 1] - al_i_minus_2 * e_i
         mu_i = matrix[row_index, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
         if mu_i == 0.0:
-            return row_index + 1
+            return factorization, row_index + 1
 
         al_i_minus_2 = al_i_minus_1
         al_i_minus_1 = (matrix[row_index, 3] - be_i_minus_1 * ga_i) / mu_i
@@ -134,16 +163,17 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
         be_i_minus_2 = be_i_minus_1
         be_i_minus_1 = matrix[row_index, 4] / mu_i
 
-        matrix[row_index, 1] = ga_i
-        matrix[row_index, 2] = mu_i
-        matrix[row_index, 3] = al_i_minus_1
-        matrix[row_index, 4] = be_i_minus_1
+        factorization[row_index, 0] = e_i
+        factorization[row_index, 1] = ga_i
+        factorization[row_index, 2] = mu_i
+        factorization[row_index, 3] = al_i_minus_1
+        factorization[row_index, 4] = be_i_minus_1
 
         e_i = matrix[row_index + 1, 0]
         ga_i = matrix[row_index + 1, 1] - al_i_minus_2 * e_i
         mu_i = matrix[row_index + 1, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
         if mu_i == 0.0:
-            return row_index + 2
+            return factorization, row_index + 2
 
         al_i_minus_2 = al_i_minus_1
         al_i_minus_1 = (matrix[row_index + 1, 3] - be_i_minus_1 * ga_i) / mu_i
@@ -151,17 +181,18 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
         be_i_minus_2 = be_i_minus_1
         be_i_minus_1 = matrix[row_index + 1, 4] / mu_i
 
-        matrix[row_index + 1, 1] = ga_i
-        matrix[row_index + 1, 2] = mu_i
-        matrix[row_index + 1, 3] = al_i_minus_1
-        matrix[row_index + 1, 4] = be_i_minus_1
+        factorization[row_index + 1, 0] = e_i
+        factorization[row_index + 1, 1] = ga_i
+        factorization[row_index + 1, 2] = mu_i
+        factorization[row_index + 1, 3] = al_i_minus_1
+        factorization[row_index + 1, 4] = be_i_minus_1
 
     for row_index in range(split_row_index, num_rows - 2):
         e_i = matrix[row_index, 0]
         ga_i = matrix[row_index, 1] - al_i_minus_2 * e_i
         mu_i = matrix[row_index, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
         if mu_i == 0.0:
-            return row_index + 1
+            return factorization, row_index + 1
 
         al_i_minus_2 = al_i_minus_1
         al_i_minus_1 = (matrix[row_index, 3] - be_i_minus_1 * ga_i) / mu_i
@@ -169,41 +200,44 @@ def ptrans1_factorize(matrix: NDArray[np.float64]) -> int:
         be_i_minus_2 = be_i_minus_1
         be_i_minus_1 = matrix[row_index, 4] / mu_i
 
-        matrix[row_index, 1] = ga_i
-        matrix[row_index, 2] = mu_i
-        matrix[row_index, 3] = al_i_minus_1
-        matrix[row_index, 4] = be_i_minus_1
+        factorization[row_index, 0] = e_i
+        factorization[row_index, 1] = ga_i
+        factorization[row_index, 2] = mu_i
+        factorization[row_index, 3] = al_i_minus_1
+        factorization[row_index, 4] = be_i_minus_1
 
     # second last row
     e_i = matrix[num_rows - 2, 0]
     ga_i = matrix[num_rows - 2, 1] - al_i_minus_2 * e_i
     mu_i = matrix[num_rows - 2, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
     if mu_i == 0.0:
-        return num_rows - 1
+        return factorization, num_rows - 1
 
     al_i_minus_2 = al_i_minus_1
     al_i_minus_1 = (matrix[num_rows - 2, 3] - be_i_minus_1 * ga_i) / mu_i
 
     be_i_minus_2 = be_i_minus_1
 
-    matrix[num_rows - 2, 1] = ga_i
-    matrix[num_rows - 2, 2] = mu_i
-    matrix[num_rows - 2, 3] = al_i_minus_1
-    matrix[num_rows - 2, 4] = 0.0
+    factorization[num_rows - 2, 0] = e_i
+    factorization[num_rows - 2, 1] = ga_i
+    factorization[num_rows - 2, 2] = mu_i
+    factorization[num_rows - 2, 3] = al_i_minus_1
+    factorization[num_rows - 2, 4] = 0.0
 
     # last row
     e_i = matrix[num_rows - 1, 0]
     ga_i = matrix[num_rows - 1, 1] - al_i_minus_2 * e_i
     mu_i = matrix[num_rows - 1, 2] - be_i_minus_2 * e_i - al_i_minus_1 * ga_i
     if mu_i == 0.0:
-        return num_rows
+        return factorization, num_rows
 
-    matrix[num_rows - 1, 1] = ga_i
-    matrix[num_rows - 1, 2] = mu_i
-    matrix[num_rows - 1, 3] = 0.0
-    matrix[num_rows - 1, 4] = 0.0
+    factorization[num_rows - 1, 0] = e_i
+    factorization[num_rows - 1, 1] = ga_i
+    factorization[num_rows - 1, 2] = mu_i
+    factorization[num_rows - 1, 3] = 0.0
+    factorization[num_rows - 1, 4] = 0.0
 
-    return 0
+    return factorization, 0
 
 
 @jit(
