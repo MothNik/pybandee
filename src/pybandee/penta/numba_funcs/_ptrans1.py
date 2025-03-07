@@ -43,7 +43,7 @@ def ptrans1_factorize(
         The pentadiagonal matrix to be factorised.
         It has to be ordered in row-major format (C-order).
     overwrite_matrix : :obj:`bool`, default=``False``
-        Whether the matrix should be overwritten with the factors (``True``) or not
+        Whether ``matrix`` should be overwritten with the factors (``True``) or not
         (``False``).
 
     Returns
@@ -51,7 +51,7 @@ def ptrans1_factorize(
     factorization : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
         The factorisation of the pentadiagonal matrix.
         If ``overwrite_matrix=True``, then this will be the same object as ``matrix``.
-        If ``info`` is not ``0``, the factorisation is incomplete.
+        If will be incomplete if ``matrix`` is invalid (see ``info``).
     info : :obj:`int`
         The return code of the factorisation.
         - ``-2``: ``matrix`` does not have 5 columns
@@ -241,11 +241,11 @@ def ptrans1_factorize(
 
 
 @jit(
-    "Tuple((float64, float64))(float64[:, ::1])",
+    "Tuple((float64, float64, int64))(float64[:, ::1])",
     nopython=True,
     cache=True,
 )
-def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
+def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float, int]:
     """
     Computes the sign and the natural logarithm of the determinant of a pentadiagonal
     matrix using the factors obtained from the PTRANS-I algorithm.
@@ -265,13 +265,32 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
     -------
     sign : :obj:`float`
         The sign of the determinant of the matrix.
+        It will be ``nan`` if ``factorization`` is invalid (see ``info``).
     logabsdet : :obj:`float`
         The natural logarithm of the absolute determinant of the matrix.
+        It will be ``nan`` if ``factorization`` is invalid (see ``info``).
 
     If the determinant is zero, then sign will be ``0.0`` and ``logabsdet`` will be
     ``-inf``. In all cases, the determinant is equal to ``sign * np.exp(logabsdet)``.
 
+    info : :obj:`int`
+        The return code of the computation.
+        - ``-2``: ``factorization`` does not have 5 columns
+        - ``-1``: ``factorization`` has less than 4 rows
+        - ``0``: successful computation
+
+
     """
+
+    # --- Preparation ---
+
+    if factorization.shape[1] != 5:
+        return np.nan, np.nan, -2
+
+    if factorization.shape[0] < 4:
+        return np.nan, np.nan, -1
+
+    # --- Computation ---
 
     mus = np.ascontiguousarray(factorization[:, 2])
 
@@ -286,19 +305,19 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float]:
     # log determinant), the sign has to be set to zero according to the NumPy
     # convention
     if np.isneginf(logabsdet):
-        return 0.0, -np.inf
+        return 0.0, -np.inf, 0
 
-    return sign, logabsdet
+    return sign, logabsdet, 0
 
 
 @jit(
-    "float64[:, ::1](float64[:, ::1])",
+    "Tuple((float64[:, ::1], int64))(float64[:, ::1])",
     nopython=True,
     cache=True,
 )
 def ptrans1_symmetric_inverse_central_penta_bands(
     factorization: NDArray[np.float64],
-) -> NDArray[np.float64]:
+) -> Tuple[NDArray[np.float64], int]:
     """
     Computes the central pentadiagonal part of the inverse of a SYMMETRIC pentadiagonal
     matrix using its factors obtained from the PTRANS-I algorithm.
@@ -316,11 +335,29 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     -------
     inverse_penta_part : :obj:`numpy.ndarray` of shape (m, 5) and dtype ``numpy.float64``
         The central part pentadiagonal part of the inverse of the original matrix.
+        It will be filled with arbitrary values if ``factorization`` is invalid
+        (see ``info``).
+    info : :obj:`int`
+        The return code of the computation.
+        - ``-2``: ``factorization`` does not have 5 columns
+        - ``-1``: ``factorization`` has less than 4 rows
+        - ``0``: successful computation
 
     """  # noqa: E501
 
+    # --- Preparation ---
+
+    inverse_penta_part = np.empty_like(factorization)
+
+    if factorization.shape[1] != 5:
+        return inverse_penta_part, -2
+
+    if factorization.shape[0] < 4:
+        return inverse_penta_part, -1
+
+    # --- Computation ---
+
     num_rows = factorization.shape[0]
-    inverse_penta_part = np.empty(shape=(num_rows, 5), dtype=np.float64)
     mu_values = np.ascontiguousarray(factorization[:, 2])
 
     # this algorithms starts from the lower right and moves its way up to the upper left
@@ -393,18 +430,22 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     inverse_penta_part[0, 1] = 0.0
     inverse_penta_part[0, 0] = 0.0
 
-    return inverse_penta_part
+    return inverse_penta_part, 0
 
 
 @jit(
-    "void(float64[:, ::1], float64[::1])",
+    [
+        "Tuple((float64[::1], int64))(float64[:, ::1], float64[::1], boolean)",
+        "Tuple((float64[::1], int64))(float64[:, ::1], float64[::1], Omitted(False))",  # noqa: E501
+    ],
     nopython=True,
     cache=True,
 )
 def ptrans1_solve_single_rhs(
     factorization: NDArray[np.float64],
     rhs: NDArray[np.float64],
-) -> None:
+    overwrite_rhs: bool = False,
+) -> Tuple[NDArray[np.float64], int]:
     """
     Solves a pentadiagonal linear system using the factors obtained from the PTRANS-I
     algorithm when only a single right-hand side is given.
@@ -415,25 +456,57 @@ def ptrans1_solve_single_rhs(
         The factorisation of the pentadiagonal matrix to solve the linear system with.
         It has to be ordered in row-major format (C-order).
     rhs : :obj:`numpy.ndarray` of shape (m,) and dtype ``numpy.float64``
-        The right-hand side of the linear system that will be overwritten with the
-        solution.
+        The right-hand side of the linear system.
+    overwrite_rhs : :obj:`bool`, default=``False``
+        Whether ``rhs`` should be overwritten with the solution (``True``) or not
+        (``False``).
+
+    Returns
+    -------
+    solution : :obj:`numpy.ndarray` of shape (m,) and dtype ``numpy.float64``
+        The solution of the linear system.
+        If ``overwrite_rhs=True``, then this will be the same object as ``rhs``.
+        It will be incomplete if ``factorization`` or ``rhs`` is invalid (see
+        ``info``).
+    info : :obj:`int`
+        The return code of the computation.
+        - ``-3``: a shape mismatch between ``factorization`` and ``rhs``
+        - ``-2``: ``factorization`` does not have 5 columns
+        - ``-1``: ``factorization`` has less than 4 rows
+        - ``0``: successful computation
 
     """
 
-    num_rows = factorization.shape[0]
+    # --- Preparation ---
+
+    if overwrite_rhs:
+        solution = rhs
+    else:
+        solution = np.empty_like(rhs)
+
+    if factorization.shape[0] != rhs.size:
+        return solution, -3
+
+    if factorization.shape[1] != 5:
+        return solution, -2
+
+    if factorization.shape[0] < 4:
+        return solution, -1
 
     # --- Transformation ---
+
+    num_rows = factorization.shape[0]
 
     # the right hand side is transformed into the vector ``z`` by the lower triangular
     # matrix
 
     # first row
     z_i_minus_2 = rhs[0] / factorization[0, 2]
-    rhs[0] = z_i_minus_2
+    solution[0] = z_i_minus_2
 
     # second row
     z_i_minus_1 = (rhs[1] - factorization[1, 1] * z_i_minus_2) / factorization[1, 2]
-    rhs[1] = z_i_minus_1
+    solution[1] = z_i_minus_1
 
     # central rows
     # NOTE: this loop is manually unrolled by a factor of 2
@@ -447,7 +520,7 @@ def ptrans1_solve_single_rhs(
         z_i_minus_2 = z_i_minus_1
         z_i_minus_1 = z_i
 
-        rhs[row_index] = z_i
+        solution[row_index] = z_i
 
         z_i = (
             rhs[row_index + 1]
@@ -457,7 +530,7 @@ def ptrans1_solve_single_rhs(
         z_i_minus_2 = z_i_minus_1
         z_i_minus_1 = z_i
 
-        rhs[row_index + 1] = z_i
+        solution[row_index + 1] = z_i
 
     for row_index in range(split_row_index, num_rows - 1):
         z_i = (
@@ -468,7 +541,7 @@ def ptrans1_solve_single_rhs(
         z_i_minus_2 = z_i_minus_1
         z_i_minus_1 = z_i
 
-        rhs[row_index] = z_i
+        solution[row_index] = z_i
 
     # last row
     # NOTE: this is done separately to avoid the memoized z-values to be overwritten
@@ -479,44 +552,44 @@ def ptrans1_solve_single_rhs(
         - factorization[num_rows - 1, 1] * z_i_minus_1
     ) / factorization[num_rows - 1, 2]
 
-    rhs[num_rows - 1] = z_i
+    solution[num_rows - 1] = z_i
 
     # --- Backward substitution ---
 
     z_i_minus_1 -= factorization[num_rows - 2, 3] * z_i
-    rhs[num_rows - 2] = z_i_minus_1
+    solution[num_rows - 2] = z_i_minus_1
 
     # central rows
     # NOTE: this loop is also manually unrolled by a factor of 2
     split_row_index = num_rows - 3 - 2 * ((num_rows - 3) // 2)
     for row_index in range(num_rows - 3, split_row_index, -2):
-        rhs[row_index] -= (
+        solution[row_index] -= (
             factorization[row_index, 3] * z_i_minus_1
             + factorization[row_index, 4] * z_i
         )
         z_i = z_i_minus_1
-        z_i_minus_1 = rhs[row_index]
+        z_i_minus_1 = solution[row_index]
 
-        rhs[row_index - 1] -= (
+        solution[row_index - 1] -= (
             factorization[row_index - 1, 3] * z_i_minus_1
             + factorization[row_index - 1, 4] * z_i
         )
         z_i = z_i_minus_1
-        z_i_minus_1 = rhs[row_index - 1]
+        z_i_minus_1 = solution[row_index - 1]
 
     for row_index in range(split_row_index, 0, -1):
-        rhs[row_index] -= (
+        solution[row_index] -= (
             factorization[row_index, 3] * z_i_minus_1
             + factorization[row_index, 4] * z_i
         )
 
         z_i = z_i_minus_1
-        z_i_minus_1 = rhs[row_index]
+        z_i_minus_1 = solution[row_index]
 
     # last row
-    rhs[0] -= factorization[0, 3] * z_i_minus_1 + factorization[0, 4] * z_i
+    solution[0] -= factorization[0, 3] * z_i_minus_1 + factorization[0, 4] * z_i
 
-    return
+    return solution, 0
 
 
 if __name__ == "__main__":
