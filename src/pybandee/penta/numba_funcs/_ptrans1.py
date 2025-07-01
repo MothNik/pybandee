@@ -20,9 +20,8 @@ References
 from typing import Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 
-from ..._utils import jit
+from ..._utils import Numpy1DArrayFloat64, NumpyPentaDiagonalArrayFloat64, jit
 
 # === Functions ===
 
@@ -36,9 +35,9 @@ from ..._utils import jit
     cache=True,
 )
 def ptrans1_factorize(
-    matrix: NDArray[np.float64],
+    matrix: NumpyPentaDiagonalArrayFloat64,
     overwrite_matrix: bool = False,
-) -> Tuple[NDArray[np.float64], int]:
+) -> Tuple[NumpyPentaDiagonalArrayFloat64, int]:
     """
     Factorises a pentadiagonal matrix using the PTRANS-I algorithm. Please refer to the
     Notes section for details.
@@ -256,7 +255,9 @@ def ptrans1_factorize(
     nopython=True,
     cache=True,
 )
-def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float, int]:
+def ptrans1_slogdet(
+    factorization: NumpyPentaDiagonalArrayFloat64,
+) -> Tuple[float, float, int]:
     """
     Computes the sign and the natural logarithm of the determinant of a pentadiagonal
     matrix using the factors obtained from the PTRANS-I algorithm.
@@ -327,8 +328,8 @@ def ptrans1_slogdet(factorization: NDArray[np.float64]) -> Tuple[float, float, i
     cache=True,
 )
 def ptrans1_symmetric_inverse_central_penta_bands(
-    factorization: NDArray[np.float64],
-) -> Tuple[NDArray[np.float64], int]:
+    factorization: NumpyPentaDiagonalArrayFloat64,
+) -> Tuple[NumpyPentaDiagonalArrayFloat64, int]:
     """
     Computes the central pentadiagonal part of the inverse of a SYMMETRIC pentadiagonal
     matrix using its factors obtained from the PTRANS-I algorithm.
@@ -359,7 +360,7 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     ----------
     .. [1] Takahashi K., Formation of sparse bus impedance matrix and its application to
            short circuit study, Proc. PICA Conference, 1973
-           
+
     """  # noqa: E501
 
     # --- Preparation ---
@@ -459,10 +460,10 @@ def ptrans1_symmetric_inverse_central_penta_bands(
     cache=True,
 )
 def ptrans1_solve_single_rhs(
-    factorization: NDArray[np.float64],
-    rhs: NDArray[np.float64],
+    factorization: NumpyPentaDiagonalArrayFloat64,
+    rhs: Numpy1DArrayFloat64,
     overwrite_rhs: bool = False,
-) -> Tuple[NDArray[np.float64], int]:
+) -> Tuple[Numpy1DArrayFloat64, int]:
     """
     Solves a pentadiagonal linear system using the factors obtained from the PTRANS-I
     algorithm when only a single right-hand side is given.
